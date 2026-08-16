@@ -5,8 +5,9 @@ import requests
 
 from models.category import CATEGORIES
 from story.compendium_generator import generate_story_compendium
-from story.html_generator import generate_story_html
 from story.sanitizer import parse_story_text
+from translation.cache_manager import (load_chapter_translation,
+                                       save_chapter_translation)
 from translation.context_builder import (build_story_context,
                                          story_context_exists)
 from translation.openai_translator import translate_chapter
@@ -19,22 +20,42 @@ STORY_BASE_URL = (
 def sanitize_name(name: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', "_", name).strip()
 
-def get_chapter_filename(index: int, chapter: dict) -> str:
-    story_code = chapter.get("storyCode", "").strip()
-    story_name = chapter.get("storyName", "").strip()
-    avg_tag = chapter.get("avgTag", "").strip()
+def get_chapter_title(
+    index: int,
+    chapter: dict
+) -> str:
 
-    parts = [f"{index:03d}"]
+    story_code = chapter.get(
+        "storyCode",
+        ""
+    ).strip()
+
+    story_name = chapter.get(
+        "storyName",
+        ""
+    ).strip()
+
+    avg_tag = chapter.get(
+        "avgTag",
+        ""
+    ).strip()
+
+    parts = [
+        f"{index:03d}"
+    ]
 
     if story_code:
         parts.append(story_code)
+
     elif story_name:
         parts.append(story_name)
 
     if avg_tag:
         parts.append(avg_tag)
 
-    return sanitize_name(" - ".join(parts)) + ".html"
+    return sanitize_name(
+        " - ".join(parts)
+    )
 
 def download_chapter_source(
     story_txt: str
@@ -57,11 +78,16 @@ def download_stories(
     groups: dict,
     catalog: dict
 ):
-    review = catalog.get("review", {})
+    review = catalog.get(
+        "review",
+        {}
+    )
 
     for group_id, group in groups.items():
 
-        story_group = review.get(group_id)
+        story_group = review.get(
+            group_id
+        )
 
         if not story_group:
             continue
@@ -94,7 +120,9 @@ def download_stories(
         story_folder = (
             Path("output")
             / category_folder
-            / sanitize_name(story_display_title)
+            / sanitize_name(
+                story_display_title
+            )
         )
 
         story_folder.mkdir(
@@ -104,50 +132,37 @@ def download_stories(
 
         chapter_data = []
 
-        for index, chapter in enumerate(chapters):
-
-            filename = get_chapter_filename(
-                index,
-                chapter
-            )
-
-            destination = (
-                story_folder
-                / filename
-            )
-
+        for index, chapter in enumerate(
+            chapters
+        ):
             chapter_data.append({
                 "index": index,
+
                 "chapter": chapter,
-                "destination": destination,
-                "title": destination.stem,
-                "scenes": None
+
+                "title": get_chapter_title(
+                    index,
+                    chapter
+                ),
+
+                "scenes": None,
+
+                "translation": (
+                    load_chapter_translation(
+                        group_id,
+                        index
+                    )
+                )
             })
 
-        context_exists = story_context_exists(
-            group_id
+        context_exists = (
+            story_context_exists(
+                group_id
+            )
         )
 
-        missing_chapters = [
-            item
-            for item in chapter_data
-            if not item["destination"].exists()
-        ]
-
-        if (
-            context_exists
-            and not missing_chapters
-        ):
-            generate_story_compendium(
-                story_folder=story_folder,
-                story_title=story_display_title,
-                cover_name=group.get("cover")
-            )
-
-            continue
-
-        # Si no existe contexto necesitamos leer
-        # todos los capítulos ingleses.
+        # Para generar el contexto necesitamos
+        # ver toda la historia inglesa.
         if not context_exists:
 
             print(
@@ -176,10 +191,29 @@ def download_stories(
                 chapters=chapter_data
             )
 
-        # Ahora traducimos únicamente los HTML
-        # que todavía no existen.
-        for item in missing_chapters:
+        translated_chapters = []
 
+        for item in chapter_data:
+
+            cached_translation = item[
+                "translation"
+            ]
+
+            # Ya fue traducido anteriormente.
+            if cached_translation:
+                print(
+                    f"Usando caché: "
+                    f"{item['title']}"
+                )
+
+                translated_chapters.append(
+                    cached_translation
+                )
+
+                continue
+
+            # Si no descargamos antes el TXT
+            # para generar el contexto, lo hacemos ahora.
             if item["scenes"] is None:
 
                 story_txt = item[
@@ -196,30 +230,36 @@ def download_stories(
                 )
 
             print(
-                f"Traduciendo: {item['title']}"
+                f"Traduciendo: "
+                f"{item['title']}"
             )
 
-            translated_scenes, translated_title = (
-                translate_chapter(
-                    scenes=item["scenes"],
-                    chapter_title=item["title"],
-                    story_id=group_id
-                )
+            (
+                translated_scenes,
+                translated_title
+            ) = translate_chapter(
+                scenes=item["scenes"],
+                chapter_title=item["title"],
+                story_id=group_id
             )
 
-            html_content = generate_story_html(
-                scenes=translated_scenes,
-                chapter_folder=story_folder,
-                chapter_title=translated_title
+            save_chapter_translation(
+                story_id=group_id,
+                chapter_index=item["index"],
+                title=translated_title,
+                scenes=translated_scenes
             )
 
-            item["destination"].write_text(
-                html_content,
-                encoding="utf-8"
-            )
+            translated_chapters.append({
+                "title": translated_title,
+                "scenes": translated_scenes
+            })
 
         generate_story_compendium(
             story_folder=story_folder,
             story_title=story_display_title,
-            cover_name=group.get("cover")
+            cover_name=group.get(
+                "cover"
+            ),
+            chapters=translated_chapters
         )

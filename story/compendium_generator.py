@@ -2,9 +2,14 @@ import os
 from html import escape
 from pathlib import Path
 
-from story.html_generator import copy_stylesheet
+from story.html_generator import copy_stylesheet, generate_story_html
 
-TEMPLATE_PATH = Path(__file__).parent / "templates" / "compendium.html"
+TEMPLATE_PATH = (
+    Path(__file__).parent
+    / "templates"
+    / "compendium.html"
+)
+
 COVERS_FOLDER = Path("assets/covers")
 
 
@@ -23,30 +28,31 @@ def extract_body(html: str) -> str:
 def generate_story_compendium(
     story_folder: Path,
     story_title: str,
-    cover_name: str | None
+    cover_name: str | None,
+    chapters: list[dict]
 ):
-    chapter_files = sorted(
-        story_folder.glob("[0-9][0-9][0-9] - *.html")
-    )
-
-    if not chapter_files:
+    if not chapters:
         return
 
     chapters_html = []
 
-    for chapter_file in chapter_files:
-        chapter_html = chapter_file.read_text(
-            encoding="utf-8"
+    for chapter in chapters:
+        chapter_html = generate_story_html(
+            scenes=chapter["scenes"],
+            chapter_folder=story_folder,
+            chapter_title=chapter["title"]
         )
 
-        chapter_body = extract_body(chapter_html)
+        chapter_body = extract_body(
+            chapter_html
+        )
 
         chapters_html.append(
-            f'''
+            f"""
             <section class="compiled-chapter">
                 {chapter_body}
             </section>
-            '''
+            """
         )
 
     cover_html = ""
@@ -85,13 +91,28 @@ def generate_story_compendium(
 
     final_html = (
         template
-        .replace("{{TITLE}}", escape(story_title))
-        .replace("{{CSS_PATH}}", relative_stylesheet_path)
-        .replace("{{COVER}}", cover_html)
-        .replace("{{CHAPTERS}}", "".join(chapters_html))
+        .replace(
+            "{{TITLE}}",
+            escape(story_title)
+        )
+        .replace(
+            "{{CSS_PATH}}",
+            relative_stylesheet_path
+        )
+        .replace(
+            "{{COVER}}",
+            cover_html
+        )
+        .replace(
+            "{{CHAPTERS}}",
+            "".join(chapters_html)
+        )
     )
 
-    destination = story_folder / f"{story_title}.html"
+    destination = (
+        story_folder
+        / f"{story_title}.html"
+    )
 
     destination.write_text(
         final_html,

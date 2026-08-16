@@ -94,6 +94,9 @@ def extract_story_text(
     parts = []
 
     for chapter in chapters:
+        if not chapter.get("scenes"):
+            continue
+
         chapter_lines = []
 
         for scene in chapter["scenes"]:

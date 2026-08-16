@@ -9,14 +9,39 @@ GROUPS_ENDPOINT = "https://arknights.timo.beer/json/covers.json"
 
 
 def filter_groups(groups: dict) -> dict:
-    return {
-        group_id: group
-        for group_id, group in groups.items()
-        if (
-            group.get("category") in CATEGORIES
-            and CATEGORIES[group["category"]].enabled
+    filtered_groups = {}
+
+    for category_id, category in CATEGORIES.items():
+        if not category.enabled:
+            continue
+
+        category_groups = [
+            (group_id, group)
+            for group_id, group in groups.items()
+            if group.get("category") == category_id
+        ]
+
+        if not category_groups:
+            continue
+
+        story_indices = category.story_indices
+
+        # None significa descargar todos los episodios
+        if story_indices is None:
+            selected_groups = category_groups
+
+        else:
+            selected_groups = [
+                category_groups[index]
+                for index in story_indices
+                if 0 <= index < len(category_groups)
+            ]
+
+        filtered_groups.update(
+            dict(selected_groups)
         )
-    }
+
+    return filtered_groups
 
 
 def create_story_folders(groups: dict):
