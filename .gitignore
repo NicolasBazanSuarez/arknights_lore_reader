@@ -1,0 +1,5 @@
+assets/
+output/
+.vscode/
+__pycache__/
+translation/context
