@@ -15,7 +15,7 @@ if not chapter_files:
 
 source = chapter_files[0]
 
-print(f"Traduciendo: {source}")
+log(f"Traduciendo: {source}")
 
 html_content = source.read_text(
     encoding="utf-8"
@@ -35,4 +35,4 @@ destination.write_text(
     encoding="utf-8"
 )
 
-print(f"Traducción generada: {destination}")
+log(f"Traducción generada: {destination}")

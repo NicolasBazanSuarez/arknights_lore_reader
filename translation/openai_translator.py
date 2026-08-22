@@ -127,7 +127,8 @@ TRANSLATION_SCHEMA = {
 def translate_chapter(
     scenes: list[dict],
     chapter_title: str,
-    story_id: str
+    story_id: str,
+    model: str = MODEL
 ) -> tuple[list[dict], str]:
 
     story_context = load_story_context(story_id)
@@ -183,7 +184,7 @@ Do not introduce information from this context into the translation.
 """
 
     response = client.responses.create(
-        model=MODEL,
+        model=model,
 
         reasoning={
             "effort": "none"

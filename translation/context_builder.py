@@ -126,25 +126,32 @@ DIALOGUE:
 def build_story_context(
     story_id: str,
     story_title: str,
-    chapters: list[dict]
+    chapters: list[dict],
+    model: str = CONTEXT_MODEL,
+    force: bool = False
 ) -> dict:
     
     CONTEXT_FOLDER.mkdir(parents=True, exist_ok=True)
     
     destination = CONTEXT_FOLDER / f"{story_id}.json"
 
-    if destination.exists():
-        print(f"Contexto existente: {destination}")
+    if destination.exists() and not force:
+        print(
+            f"Contexto existente: {destination}"
+        )
+
         return json.loads(
-            destination.read_text(encoding="utf-8")
+            destination.read_text(
+                encoding="utf-8"
+            )
         )
 
     story_text = extract_story_text(chapters)
 
-    print(f"Generando contexto para: {story_title}")
+    log(f"Generando contexto para: {story_title}")
 
     response = client.responses.create(
-        model=CONTEXT_MODEL,
+        model=model,
 
         reasoning={
             "effort": "low"
@@ -198,7 +205,7 @@ SOURCE CHAPTERS:
         encoding="utf-8"
     )
 
-    print(f"Contexto generado: {destination}")
+    log(f"Contexto generado: {destination}")
 
     return context
 

@@ -76,12 +76,48 @@ def download_chapter_source(
 
 def download_stories(
     groups: dict,
-    catalog: dict
+    catalog: dict,
+    translation_model: str,
+    context_model: str,
+    regenerate_context: bool = False,
+    ignore_translation_cache: bool = False,
+    download_only: bool = False,
+    log_callback=None,
+    progress_callback=None
 ):
+    def log(message: str):
+        if log_callback:
+            log_callback(message)
+
+    def progress(value: int):
+        if progress_callback:
+            progress_callback(value)
+            
     review = catalog.get(
         "review",
         {}
     )
+    
+    total_chapters = 0
+
+    for group_id in groups:
+        story_group = review.get(
+            group_id
+        )
+
+        if not story_group:
+            continue
+
+        total_chapters += len(
+            story_group.get(
+                "infoUnlockDatas",
+                []
+            )
+        )
+
+    processed_chapters = 0
+
+    progress(0)
 
     for group_id, group in groups.items():
 
@@ -148,7 +184,9 @@ def download_stories(
                 "scenes": None,
 
                 "translation": (
-                    load_chapter_translation(
+                    None
+                    if ignore_translation_cache
+                    else load_chapter_translation(
                         group_id,
                         index
                     )
@@ -156,16 +194,67 @@ def download_stories(
             })
 
         context_exists = (
-            story_context_exists(
-                group_id
-            )
+            story_context_exists(group_id)
+            and not regenerate_context
         )
+        
+        if download_only:
+
+            downloaded_chapters = []
+
+            for item in chapter_data:
+
+                story_txt = item[
+                    "chapter"
+                ].get("storyTxt")
+
+                if not story_txt:
+                    continue
+
+                log(
+                    f"Descargando: "
+                    f"{item['title']}"
+                )
+
+                scenes = download_chapter_source(
+                    story_txt
+                )
+
+                downloaded_chapters.append({
+                    "title": item["title"],
+                    "scenes": scenes
+                })
+
+                processed_chapters += 1
+
+                if total_chapters:
+                    progress(
+                        int(
+                            processed_chapters
+                            / total_chapters
+                            * 100
+                        )
+                    )
+
+            generate_story_compendium(
+                story_folder=story_folder,
+                story_title=story_display_title,
+                cover_name=group.get("cover"),
+                chapters=downloaded_chapters
+            )
+
+            log(
+                f"Recopilatorio descargado: "
+                f"{story_display_title}"
+            )
+
+            continue
 
         # Para generar el contexto necesitamos
         # ver toda la historia inglesa.
         if not context_exists:
 
-            print(
+            log(
                 f"Descargando fuentes para contexto: "
                 f"{story_display_title}"
             )
@@ -184,11 +273,18 @@ def download_stories(
                         story_txt
                     )
                 )
+                
+            log(
+                f"Generando contexto: "
+                f"{story_display_title}"
+            )
 
             build_story_context(
                 story_id=group_id,
                 story_title=story_display_title,
-                chapters=chapter_data
+                chapters=chapter_data,
+                model=context_model,
+                force=regenerate_context
             )
 
         translated_chapters = []
@@ -201,7 +297,7 @@ def download_stories(
 
             # Ya fue traducido anteriormente.
             if cached_translation:
-                print(
+                log(
                     f"Usando caché: "
                     f"{item['title']}"
                 )
@@ -209,6 +305,17 @@ def download_stories(
                 translated_chapters.append(
                     cached_translation
                 )
+                
+                processed_chapters += 1
+
+                if total_chapters:
+                    progress(
+                        int(
+                            processed_chapters
+                            / total_chapters
+                            * 100
+                        )
+                    )
 
                 continue
 
@@ -229,7 +336,7 @@ def download_stories(
                     )
                 )
 
-            print(
+            log(
                 f"Traduciendo: "
                 f"{item['title']}"
             )
@@ -240,7 +347,8 @@ def download_stories(
             ) = translate_chapter(
                 scenes=item["scenes"],
                 chapter_title=item["title"],
-                story_id=group_id
+                story_id=group_id,
+                model=translation_model
             )
 
             save_chapter_translation(
@@ -254,6 +362,17 @@ def download_stories(
                 "title": translated_title,
                 "scenes": translated_scenes
             })
+            
+            processed_chapters += 1
+
+            if total_chapters:
+                progress(
+                    int(
+                        processed_chapters
+                        / total_chapters
+                        * 100
+                    )
+                )
 
         generate_story_compendium(
             story_folder=story_folder,
@@ -262,4 +381,9 @@ def download_stories(
                 "cover"
             ),
             chapters=translated_chapters
+        )
+        
+        log(
+            f"Recopilatorio generado: "
+            f"{story_display_title}"
         )
