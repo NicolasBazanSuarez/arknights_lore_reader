@@ -148,8 +148,6 @@ def build_story_context(
 
     story_text = extract_story_text(chapters)
 
-    log(f"Generando contexto para: {story_title}")
-
     response = client.responses.create(
         model=model,
 
@@ -204,8 +202,6 @@ SOURCE CHAPTERS:
         ),
         encoding="utf-8"
     )
-
-    log(f"Contexto generado: {destination}")
 
     return context
 

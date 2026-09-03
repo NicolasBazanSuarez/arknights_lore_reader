@@ -41,7 +41,14 @@ REFERENCES_ATTR_PATTERN = re.compile(
 )
 
 
-def parse_story_text(text: str) -> list[dict]:
+def parse_story_text(
+    text: str,
+    speaker_names: dict[str, str] | None = None
+) -> list[dict]:
+    
+    if speaker_names is None:
+        speaker_names = {}
+    
     scenes = []
 
     current_background = None
@@ -257,6 +264,49 @@ def parse_story_text(text: str) -> list[dict]:
                 current_dialogues = []
 
             continue
+        
+        head_dialog_match = re.match(
+            r'^\s*\[Dialog\((?P<attrs>[^\]]*)\)\]\s*(?P<text>.*)$',
+            line,
+            re.IGNORECASE
+        )
+
+        if head_dialog_match:
+
+            attrs = head_dialog_match.group(
+                "attrs"
+            )
+
+            dialogue = head_dialog_match.group(
+                "text"
+            ).strip()
+
+            head_match = re.search(
+                r'\bhead\s*=\s*"([^"]+)"',
+                attrs,
+                re.IGNORECASE
+            )
+
+            if head_match and dialogue:
+
+                char_id = (
+                    head_match
+                    .group(1)
+                    .strip()
+                    .lower()
+                )
+
+                speaker = speaker_names.get(
+                    char_id,
+                    char_id
+                )
+
+                add_dialogue(
+                    speaker,
+                    dialogue
+                )
+
+            continue
 
         # -------------------------------------------------
         # Diálogo normal
@@ -292,6 +342,18 @@ def parse_story_text(text: str) -> list[dict]:
             add_dialogue(
                 speaker,
                 dialogue
+            )
+        
+        stripped_line = line.strip()
+
+        if (
+            stripped_line
+            and not stripped_line.startswith("[")
+            and not stripped_line.startswith("//")
+        ):
+            add_dialogue(
+                "",
+                stripped_line
             )
 
     save_scene()

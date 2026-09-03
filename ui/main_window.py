@@ -1,8 +1,8 @@
 from PySide6.QtCore import Qt, QThread
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QGroupBox, QHBoxLayout,
-                               QLabel, QListWidget, QListWidgetItem,
-                               QMainWindow, QPlainTextEdit, QProgressBar,
-                               QPushButton, QVBoxLayout, QWidget)
+                               QLabel, QLineEdit, QMainWindow, QPlainTextEdit,
+                               QProgressBar, QPushButton, QTreeWidget,
+                               QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from models.category import CATEGORIES
 from ui.worker import GroupsWorker, TranslationWorker
@@ -75,6 +75,10 @@ class MainWindow(QMainWindow):
 
         self.progress_bar.setRange(
             0,
+            100
+        )
+
+        self.progress_bar.setValue(
             0
         )
 
@@ -227,15 +231,53 @@ class MainWindow(QMainWindow):
         stories_layout = QVBoxLayout(
             stories_group
         )
-        
-        self.stories_list = QListWidget()
 
-        self.stories_list.itemChanged.connect(
+        # ---------------------------------
+        # Buscador
+        # ---------------------------------
+
+        self.story_search = QLineEdit()
+
+        self.story_search.setPlaceholderText(
+            "Buscar historia..."
+        )
+
+        self.story_search.textChanged.connect(
+            self.filter_stories
+        )
+
+        stories_layout.addWidget(
+            self.story_search
+        )
+
+        # ---------------------------------
+        # Árbol de historias
+        # ---------------------------------
+
+        self.stories_tree = QTreeWidget()
+
+        self.stories_tree.setHeaderHidden(
+            True
+        )
+
+        self.stories_tree.itemChanged.connect(
             self.on_story_item_changed
         )
 
         stories_layout.addWidget(
-            self.stories_list
+            self.stories_tree
+        )
+
+        self.toggle_all_stories_button = QPushButton(
+            "Seleccionar / deseleccionar todo"
+        )
+
+        self.toggle_all_stories_button.clicked.connect(
+            self.toggle_all_stories
+        )
+
+        stories_layout.addWidget(
+            self.toggle_all_stories_button
         )
         
         self.retry_connection_button = QPushButton(
@@ -482,22 +524,49 @@ class MainWindow(QMainWindow):
             if checkbox.isChecked()
         }
 
-        self.stories_list.blockSignals(
+        self.stories_tree.blockSignals(
             True
         )
 
-        self.stories_list.clear()
+        self.stories_tree.clear()
 
+        category_items = {}
+
+        # Crear primero los desplegables
+        # de las categorías seleccionadas.
+        for category_id, category in CATEGORIES.items():
+
+            if category_id not in enabled_categories:
+                continue
+
+            category_item = QTreeWidgetItem(
+                [category.folder_name]
+            )
+
+            font = category_item.font(0)
+            font.setBold(True)
+            category_item.setFont(
+                0,
+                font
+            )
+
+            self.stories_tree.addTopLevelItem(
+                category_item
+            )
+
+            category_items[
+                category_id
+            ] = category_item
+
+        # Añadir cada historia dentro de
+        # su categoría correspondiente.
         for group_id, group in self.groups.items():
 
             category_id = group.get(
                 "category"
             )
 
-            if (
-                category_id
-                not in enabled_categories
-            ):
+            if category_id not in category_items:
                 continue
 
             title = group.get(
@@ -505,11 +574,12 @@ class MainWindow(QMainWindow):
                 group_id
             )
 
-            item = QListWidgetItem(
-                title
+            item = QTreeWidgetItem(
+                [title]
             )
 
             item.setData(
+                0,
                 Qt.ItemDataRole.UserRole,
                 group_id
             )
@@ -519,42 +589,59 @@ class MainWindow(QMainWindow):
                 | Qt.ItemFlag.ItemIsUserCheckable
             )
 
-            # Una historia nueva aparece
-            # seleccionada por defecto.
-            selected = (
-                self.story_selection.get(
-                    group_id,
-                    True
-                )
+            selected = self.story_selection.get(
+                group_id,
+                True
             )
 
             item.setCheckState(
-                Qt.CheckState.Checked
-                if selected
-                else Qt.CheckState.Unchecked
+                0,
+                (
+                    Qt.CheckState.Checked
+                    if selected
+                    else Qt.CheckState.Unchecked
+                )
             )
 
-            self.stories_list.addItem(
+            category_items[
+                category_id
+            ].addChild(
                 item
             )
 
-        self.stories_list.blockSignals(
+        # Abrir inicialmente las categorías.
+        for category_item in category_items.values():
+            category_item.setExpanded(
+                True
+            )
+
+        self.stories_tree.blockSignals(
             False
+        )
+
+        self.filter_stories(
+            self.story_search.text()
         )
     
     def on_story_item_changed(
         self,
-        item: QListWidgetItem
+        item: QTreeWidgetItem,
+        column: int
     ):
-
         group_id = item.data(
+            0,
             Qt.ItemDataRole.UserRole
         )
+
+        # Los elementos de categoría no
+        # representan una historia.
+        if group_id is None:
+            return
 
         self.story_selection[
             group_id
         ] = (
-            item.checkState()
+            item.checkState(0)
             == Qt.CheckState.Checked
         )
         
@@ -564,32 +651,41 @@ class MainWindow(QMainWindow):
 
         selected_groups = {}
 
-        for index in range(
-            self.stories_list.count()
+        for category_index in range(
+            self.stories_tree.topLevelItemCount()
         ):
 
-            item = (
-                self.stories_list.item(
-                    index
+            category_item = (
+                self.stories_tree.topLevelItem(
+                    category_index
                 )
             )
 
-            if (
-                item.checkState()
-                != Qt.CheckState.Checked
+            for child_index in range(
+                category_item.childCount()
             ):
-                continue
 
-            group_id = item.data(
-                Qt.ItemDataRole.UserRole
-            )
+                item = category_item.child(
+                    child_index
+                )
 
-            if group_id in self.groups:
-                selected_groups[
-                    group_id
-                ] = self.groups[
-                    group_id
-                ]
+                if (
+                    item.checkState(0)
+                    != Qt.CheckState.Checked
+                ):
+                    continue
+
+                group_id = item.data(
+                    0,
+                    Qt.ItemDataRole.UserRole
+                )
+
+                if group_id in self.groups:
+                    selected_groups[
+                        group_id
+                    ] = self.groups[
+                        group_id
+                    ]
 
         return selected_groups
     
@@ -661,3 +757,114 @@ class MainWindow(QMainWindow):
     def on_groups_thread_finished(self):
         self.groups_worker = None
         self.groups_thread = None
+        
+    def filter_stories(
+    self,
+    text: str
+):
+        query = text.strip().casefold()
+
+        for category_index in range(
+            self.stories_tree.topLevelItemCount()
+        ):
+
+            category_item = (
+                self.stories_tree.topLevelItem(
+                    category_index
+                )
+            )
+
+            category_matches = (
+                query
+                and query
+                in category_item.text(0).casefold()
+            )
+
+            visible_children = 0
+
+            for child_index in range(
+                category_item.childCount()
+            ):
+
+                child = category_item.child(
+                    child_index
+                )
+
+                group_id = child.data(
+                    0,
+                    Qt.ItemDataRole.UserRole
+                )
+
+                title = child.text(
+                    0
+                ).casefold()
+
+                group_id_text = str(
+                    group_id
+                ).casefold()
+
+                matches = (
+                    not query
+                    or category_matches
+                    or query in title
+                    or query in group_id_text
+                )
+
+                child.setHidden(
+                    not matches
+                )
+
+                if matches:
+                    visible_children += 1
+
+            category_item.setHidden(
+                visible_children == 0
+            )
+
+            if query and visible_children:
+                category_item.setExpanded(
+                    True
+                )
+                
+    def toggle_all_stories(self):
+
+        story_items = []
+
+        for category_index in range(
+            self.stories_tree.topLevelItemCount()
+        ):
+            category_item = (
+                self.stories_tree.topLevelItem(
+                    category_index
+                )
+            )
+
+            for child_index in range(
+                category_item.childCount()
+            ):
+                story_items.append(
+                    category_item.child(
+                        child_index
+                    )
+                )
+
+        if not story_items:
+            return
+
+        all_selected = all(
+            item.checkState(0)
+            == Qt.CheckState.Checked
+            for item in story_items
+        )
+
+        new_state = (
+            Qt.CheckState.Unchecked
+            if all_selected
+            else Qt.CheckState.Checked
+        )
+
+        for item in story_items:
+            item.setCheckState(
+                0,
+                new_state
+            )

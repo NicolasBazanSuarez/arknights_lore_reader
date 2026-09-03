@@ -26,15 +26,10 @@ def sync_covers(groups: dict):
 
     # 3. Comparar ambos listados
     missing_covers = required_covers - existing_covers
-    extra_covers = existing_covers - required_covers
 
     # 4. Descargar las que faltan
     for cover in missing_covers:
         download_cover(cover)
-
-    # Borrar las que ya no son necesarias
-    for cover in extra_covers:
-        (COVERS_FOLDER / cover).unlink()
 
 
 def download_cover(cover: str):

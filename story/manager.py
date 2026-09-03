@@ -4,6 +4,7 @@ from pathlib import Path
 import requests
 
 from models.category import CATEGORIES
+from story.catalog_resolver import build_speaker_names, get_story_chapters
 from story.compendium_generator import generate_story_compendium
 from story.sanitizer import parse_story_text
 from translation.cache_manager import (load_chapter_translation,
@@ -58,7 +59,9 @@ def get_chapter_title(
     )
 
 def download_chapter_source(
-    story_txt: str
+    story_txt: str,
+    speaker_names: dict[str, str] | None = None,
+    fallback_image: str | None = None
 ) -> list[dict]:
 
     url = f"{STORY_BASE_URL}/{story_txt}.txt"
@@ -72,7 +75,18 @@ def download_chapter_source(
 
     text = response.content.decode("utf-8")
 
-    return parse_story_text(text)
+    scenes = parse_story_text(
+        text,
+        speaker_names=speaker_names
+    )
+
+    if fallback_image:
+        for scene in scenes:
+            if scene["background"] == "UNKNOWN":
+                scene["background"] = fallback_image
+                scene["image_type"] = "image"
+
+    return scenes
 
 def download_stories(
     groups: dict,
@@ -93,26 +107,22 @@ def download_stories(
         if progress_callback:
             progress_callback(value)
             
-    review = catalog.get(
-        "review",
-        {}
+    speaker_names = build_speaker_names(
+        catalog
     )
     
     total_chapters = 0
 
-    for group_id in groups:
-        story_group = review.get(
-            group_id
+    for group_id, group in groups.items():
+
+        chapters = get_story_chapters(
+            group_id=group_id,
+            group=group,
+            catalog=catalog
         )
 
-        if not story_group:
-            continue
-
         total_chapters += len(
-            story_group.get(
-                "infoUnlockDatas",
-                []
-            )
+            chapters
         )
 
     processed_chapters = 0
@@ -121,28 +131,18 @@ def download_stories(
 
     for group_id, group in groups.items():
 
-        story_group = review.get(
-            group_id
-        )
-
-        if not story_group:
-            continue
-
-        chapters = story_group.get(
-            "infoUnlockDatas",
-            []
+        chapters = get_story_chapters(
+            group_id=group_id,
+            group=group,
+            catalog=catalog
         )
 
         if not chapters:
-            continue
-
-        chapters = sorted(
-            chapters,
-            key=lambda chapter: chapter.get(
-                "storySort",
-                0
+            log(
+                f"No se encontraron capítulos para: "
+                f"{group.get('title', group_id)}"
             )
-        )
+            continue
 
         category_folder = CATEGORIES[
             group["category"]
@@ -217,7 +217,11 @@ def download_stories(
                 )
 
                 scenes = download_chapter_source(
-                    story_txt
+                    story_txt,
+                    speaker_names,
+                    item["chapter"].get(
+                        "storyBackground"
+                    )
                 )
 
                 downloaded_chapters.append({
@@ -270,7 +274,11 @@ def download_stories(
 
                 item["scenes"] = (
                     download_chapter_source(
-                        story_txt
+                        story_txt,
+                        speaker_names,
+                        item["chapter"].get(
+                            "storyBackground"
+                        )
                     )
                 )
                 
@@ -332,7 +340,11 @@ def download_stories(
 
                 item["scenes"] = (
                     download_chapter_source(
-                        story_txt
+                        story_txt,
+                        speaker_names,
+                        item["chapter"].get(
+                            "storyBackground"
+                        )
                     )
                 )
 
