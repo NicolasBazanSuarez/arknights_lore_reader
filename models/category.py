@@ -5,14 +5,44 @@ from dataclasses import dataclass
 class Category:
     enabled: bool
     folder_name: str
-    story_indices: list[int] | None = None
+    selectable: bool = True
 
 
 CATEGORIES = {
-    "side": Category(False, "Side Story"),
-    "extra": Category(False, "Side Content"),
-    "sandbox": Category(False, "Reclamation"),
-    "mini": Category(False, "Vignettes"),
-    "main": Category(True, "Main Story", [0]),
-    "rogue": Category(False, "Integrated Strategies"),
+    "side": Category(
+        False,
+        "Side Story"
+    ),
+
+    "extra": Category(
+        False,
+        "Side Content",
+        selectable=False
+    ),
+
+    "sandbox": Category(
+        False,
+        "Reclamation",
+        selectable=False
+    ),
+
+    "mini": Category(
+        False,
+        "Vignettes"
+    ),
+
+    "main": Category(
+        False,
+        "Main Story"
+    ),
+
+    "rogue": Category(
+        False,
+        "Integrated Strategies"
+    ),
+
+    "operators": Category(
+        False,
+        "Operators"
+    ),
 }

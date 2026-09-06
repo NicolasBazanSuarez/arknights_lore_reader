@@ -1,6 +1,7 @@
 from PySide6.QtCore import QObject, Signal, Slot
 
-from app.runner import load_available_groups, run_translation
+from app.runner import (load_available_groups, load_available_operators,
+                        run_translation)
 
 
 class TranslationWorker(QObject):
@@ -13,6 +14,7 @@ class TranslationWorker(QObject):
     def __init__(
         self,
         groups: dict,
+        operators: dict,
         translation_model: str,
         context_model: str,
         regenerate_context: bool,
@@ -22,6 +24,7 @@ class TranslationWorker(QObject):
         super().__init__()
 
         self.groups = groups
+        self.operators = operators
         self.translation_model = translation_model
         self.context_model = context_model
         self.regenerate_context = regenerate_context
@@ -39,6 +42,7 @@ class TranslationWorker(QObject):
 
             run_translation(
                 groups=self.groups,
+                operators=self.operators,
                 translation_model=self.translation_model,
                 context_model=self.context_model,
                 regenerate_context=self.regenerate_context,
@@ -81,6 +85,36 @@ class GroupsWorker(QObject):
 
             self.loaded.emit(
                 groups
+            )
+
+        except Exception as exception:
+            self.error.emit(
+                str(exception)
+            )
+
+        finally:
+            self.finished.emit()
+
+class OperatorsWorker(QObject):
+
+    loaded = Signal(dict)
+    error = Signal(str)
+    log = Signal(str)
+    finished = Signal()
+
+    @Slot()
+    def run(self):
+        try:
+            self.log.emit(
+                "Cargando operadores..."
+            )
+
+            operators = (
+                load_available_operators()
+            )
+
+            self.loaded.emit(
+                operators
             )
 
         except Exception as exception:

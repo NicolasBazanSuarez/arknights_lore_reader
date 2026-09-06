@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QGroupBox, QHBoxLayout,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from models.category import CATEGORIES
-from ui.worker import GroupsWorker, TranslationWorker
+from ui.worker import GroupsWorker, OperatorsWorker, TranslationWorker
 
 
 class MainWindow(QMainWindow):
@@ -24,6 +24,12 @@ class MainWindow(QMainWindow):
         self.category_checkboxes = {}
 
         self.story_selection = {}
+        
+        self.operators = {}
+
+        self.operator_selection = {}
+
+        self.operators_loaded = False
 
         self.setup_ui()
         
@@ -37,15 +43,124 @@ class MainWindow(QMainWindow):
 
         self.load_groups_async()
         
+    def on_category_changed(
+        self,
+        category_id: str,
+        state: int
+    ):
+        if (
+            category_id == "operators"
+            and state
+            and not self.operators_loaded
+        ):
+            self.load_operators_async()
+
+        self.refresh_stories()
+        
+    def load_operators_async(self):
+
+        if (
+            hasattr(self, "operators_thread")
+            and self.operators_thread is not None
+            and self.operators_thread.isRunning()
+        ):
+            return
+
+        self.log_output.appendPlainText(
+            "Cargando listado de operadores..."
+        )
+
+        self.operators_thread = QThread()
+
+        self.operators_worker = (
+            OperatorsWorker()
+        )
+
+        self.operators_worker.moveToThread(
+            self.operators_thread
+        )
+
+        self.operators_thread.started.connect(
+            self.operators_worker.run
+        )
+
+        self.operators_worker.loaded.connect(
+            self.on_operators_loaded
+        )
+
+        self.operators_worker.error.connect(
+            self.on_operators_error
+        )
+
+        self.operators_worker.finished.connect(
+            self.operators_thread.quit
+        )
+
+        self.operators_worker.finished.connect(
+            self.operators_worker.deleteLater
+        )
+
+        self.operators_thread.finished.connect(
+            self.operators_thread.deleteLater
+        )
+
+        self.operators_thread.finished.connect(
+            self.on_operators_thread_finished
+        )
+
+        self.operators_thread.start()
+        
+    def on_operators_loaded(
+        self,
+        operators: dict
+    ):
+        self.operators = operators
+
+        self.operators_loaded = True
+
+        self.log_output.appendPlainText(
+            f"Operadores cargados: "
+            f"{len(operators)}"
+        )
+
+        self.refresh_stories()
+        
+    def on_operators_error(
+        self,
+        message: str
+    ):
+        self.log_output.appendPlainText(
+            "No se ha podido cargar "
+            "el listado de operadores."
+        )
+
+        self.log_output.appendPlainText(
+            f"ERROR: {message}"
+        )
+        
+    def on_operators_thread_finished(
+        self
+    ):
+        self.operators_worker = None
+        self.operators_thread = None
+        
     def start_translation(self):
         
         selected_groups = (
             self.get_selected_groups()
         )
+        
+        selected_operators = (
+            self.get_selected_operators()
+        )
 
-        if not selected_groups:
+        if (
+            not selected_groups
+            and not selected_operators
+        ):
             self.log_output.appendPlainText(
-                "No hay historias seleccionadas."
+                "No hay historias ni operadores "
+                "seleccionados."
             )
             return
         
@@ -98,6 +213,7 @@ class MainWindow(QMainWindow):
 
         self.worker = TranslationWorker(
             groups=selected_groups,
+            operators=selected_operators,
             translation_model=translation_model,
             context_model=context_model,
             regenerate_context=regenerate_context,
@@ -201,9 +317,17 @@ class MainWindow(QMainWindow):
             checkbox.setChecked(
                 category.enabled
             )
+            
+            checkbox.setEnabled(
+                category.selectable
+            )
 
             checkbox.stateChanged.connect(
-                self.refresh_stories
+                lambda state, cid=category_id:
+                    self.on_category_changed(
+                        cid,
+                        state
+                    )
             )
 
             self.category_checkboxes[
@@ -239,7 +363,7 @@ class MainWindow(QMainWindow):
         self.story_search = QLineEdit()
 
         self.story_search.setPlaceholderText(
-            "Buscar historia..."
+            "Buscar..."
         )
 
         self.story_search.textChanged.connect(
@@ -609,6 +733,72 @@ class MainWindow(QMainWindow):
                 item
             )
 
+        # ---------------------------------
+        # Operators
+        # ---------------------------------
+
+        operators_category = (
+            category_items.get(
+                "operators"
+            )
+        )
+
+        if (
+            operators_category
+            and self.operators_loaded
+        ):
+
+            sorted_operators = sorted(
+                self.operators.items(),
+                key=lambda item:
+                    item[1]["name"].casefold()
+            )
+
+            for operator_id, operator in (
+                sorted_operators
+            ):
+
+                item = QTreeWidgetItem(
+                    [operator["name"]]
+                )
+
+                item.setData(
+                    0,
+                    Qt.ItemDataRole.UserRole,
+                    operator_id
+                )
+
+                item.setData(
+                    0,
+                    Qt.ItemDataRole.UserRole + 1,
+                    "operator"
+                )
+
+                item.setFlags(
+                    item.flags()
+                    | Qt.ItemFlag.ItemIsUserCheckable
+                )
+
+                selected = (
+                    self.operator_selection.get(
+                        operator_id,
+                        False
+                    )
+                )
+
+                item.setCheckState(
+                    0,
+                    (
+                        Qt.CheckState.Checked
+                        if selected
+                        else Qt.CheckState.Unchecked
+                    )
+                )
+
+                operators_category.addChild(
+                    item
+                )
+                
         # Abrir inicialmente las categorías.
         for category_item in category_items.values():
             category_item.setExpanded(
@@ -628,22 +818,35 @@ class MainWindow(QMainWindow):
         item: QTreeWidgetItem,
         column: int
     ):
-        group_id = item.data(
+        item_id = item.data(
             0,
             Qt.ItemDataRole.UserRole
         )
 
-        # Los elementos de categoría no
-        # representan una historia.
-        if group_id is None:
+        if item_id is None:
             return
 
-        self.story_selection[
-            group_id
-        ] = (
+        item_type = item.data(
+            0,
+            Qt.ItemDataRole.UserRole + 1
+        )
+
+        selected = (
             item.checkState(0)
             == Qt.CheckState.Checked
         )
+
+        if item_type == "operator":
+
+            self.operator_selection[
+                item_id
+            ] = selected
+
+            return
+
+        self.story_selection[
+            item_id
+        ] = selected
         
     def get_selected_groups(
         self
@@ -688,6 +891,20 @@ class MainWindow(QMainWindow):
                     ]
 
         return selected_groups
+
+    def get_selected_operators(
+        self
+    ) -> dict:
+
+        return {
+            operator_id: self.operators[operator_id]
+            for operator_id, selected
+            in self.operator_selection.items()
+            if (
+                selected
+                and operator_id in self.operators
+            )
+        }
     
     def update_translation_controls(self):
         translation_enabled = (

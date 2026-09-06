@@ -1,0 +1,216 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  color: #111;
+  background: white;
+}
+
+.document {
+  padding: 28px 36px;
+}
+
+.operator-title {
+  margin: 0 0 24px 0;
+  font-size: 30px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.operator-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+  margin-bottom: 32px;
+}
+
+.operator-portrait-column {
+  width: 270px;
+  flex-shrink: 0;
+}
+
+.operator-portrait {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.operator-info-column {
+  flex: 1;
+  min-width: 0;
+}
+
+.operator-info-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.operator-two-columns {
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+.operator-two-columns .info-section {
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: calc(50% - 11px);
+}
+
+.info-section,
+.archive-section,
+.module-card {
+  break-inside: avoid;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.info-section-title {
+  margin: 0 0 10px 0;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.info-section-content {
+  margin: 0;
+  white-space: pre-line;
+  line-height: 1.55;
+}
+
+.operator-archives {
+  margin-top: 12px;
+}
+
+.archive-grid {
+  display: grid;
+  gap: 26px;
+  align-items: start;
+}
+
+.page-break {
+  break-before: page;
+  page-break-before: always;
+}
+
+.modules-title,
+.record-title,
+.chapter-title {
+  text-align: center;
+}
+
+.modules-title {
+  margin: 0 0 24px 0;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.record-title {
+  margin: 0 0 20px 0;
+  font-size: 26px;
+  font-weight: bold;
+}
+
+.chapter-title {
+  margin: 0 0 18px 0;
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.module-card {
+  margin-bottom: 28px;
+}
+
+.module-title {
+  margin: 0 0 10px 0;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.module-description {
+  margin: 0;
+  white-space: pre-line;
+  line-height: 1.55;
+}
+
+.story-scene {
+  break-before: page;
+  page-break-before: always;
+  margin-bottom: 28px;
+}
+
+.operator-record-chapter .story-scene:first-of-type {
+  break-before: auto;
+  page-break-before: auto;
+}
+
+.scene-content {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.scene-image-wrapper {
+  margin-bottom: 18px;
+  text-align: center;
+}
+
+.scene-image {
+  display: block;
+  width: 100%;
+  max-width: 1280px;
+  height: auto;
+  margin: 0 auto;
+}
+
+.dialogues {
+  width: 100%;
+  margin: 0 auto;
+}
+
+.dialogue-block {
+  margin-bottom: 18px;
+}
+
+.dialogue-speaker {
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.dialogue-lines {
+  padding-left: 22px;
+  line-height: 1.55;
+}
+
+.dialogue-line {
+  margin-bottom: 4px;
+}
+
+.dialogue-block.narrator .dialogue-lines {
+  padding-left: 0;
+  font-style: italic;
+}
+
+@media (max-width: 1100px) {
+  .operator-summary {
+    flex-direction: column;
+  }
+
+  .operator-portrait-column {
+    width: 220px;
+  }
+
+  .operator-two-columns {
+    flex-direction: column;
+  }
+
+  .operator-two-columns .info-section {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .archive-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
