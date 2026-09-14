@@ -24,7 +24,7 @@ body {
 }
 
 .operator-portrait-column {
-  width: 270px;
+  width: 180px;
   flex-shrink: 0;
 }
 
@@ -45,17 +45,17 @@ body {
   gap: 22px;
 }
 
-.operator-two-columns {
+.operator-info-row {
   display: flex;
   align-items: flex-start;
   gap: 22px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
-.operator-two-columns .info-section {
+.operator-info-row .info-section {
   flex: 0 1 auto;
   width: max-content;
-  max-width: calc(50% - 11px);
+  max-width: calc(25% - 17px);
 }
 
 .info-section,
@@ -198,19 +198,58 @@ body {
   }
 
   .operator-portrait-column {
-    width: 220px;
-  }
-
-  .operator-two-columns {
-    flex-direction: column;
-  }
-
-  .operator-two-columns .info-section {
-    width: 100%;
-    max-width: 100%;
+    width: 160px;
   }
 
   .archive-grid {
     grid-template-columns: 1fr !important;
   }
+
+  .operator-info-row {
+    flex-wrap: wrap;
+  }
+
+  .operator-info-row .info-section {
+    width: calc(50% - 11px);
+    max-width: calc(50% - 11px);
+  }
+}
+
+.scene-image-stage {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.scene-characters {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 24px;
+
+  padding: 0 24px 18px 24px;
+  box-sizing: border-box;
+}
+
+.scene-character-card {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+
+  max-width: 140px;
+}
+
+.scene-character-image {
+  display: block;
+
+  width: auto;
+  height: auto;
+
+  max-height: 840px;
+  max-width: 420px;
 }

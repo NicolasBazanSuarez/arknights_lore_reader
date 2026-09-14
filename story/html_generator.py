@@ -4,6 +4,7 @@ from html import escape
 from pathlib import Path
 
 from media.background_manager import get_scene_image
+from media.character_manager import get_scene_character_image
 
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "story.html"
 STYLE_PATH = Path(__file__).parent / "styles" / "story.css"
@@ -33,6 +34,15 @@ def generate_story_html(
         background_name = scene["background"]
 
         image_html = ""
+        visual_html = ""
+
+        scene_characters_html = render_scene_characters(
+            scene.get(
+                "characters",
+                []
+            ),
+            chapter_folder
+        )
 
         if background_name != "UNKNOWN":
             image_file = get_scene_image(
@@ -41,7 +51,10 @@ def generate_story_html(
             )
 
             relative_image_path = Path(
-                os.path.relpath(image_file, chapter_folder)
+                os.path.relpath(
+                    image_file,
+                    chapter_folder
+                )
             ).as_posix()
 
             image_html = (
@@ -49,6 +62,16 @@ def generate_story_html(
                 f'src="{escape(relative_image_path)}" '
                 f'alt="{escape(background_name)}">'
             )
+
+            visual_html = f'''
+            <div class="scene-image-wrapper">
+                <div class="scene-image-stage">
+                    {image_html}
+
+                    {scene_characters_html}
+                </div>
+            </div>
+            '''
 
         dialogue_blocks_html = []
 
@@ -90,9 +113,7 @@ def generate_story_html(
 
                 <div class="scene-content">
 
-                    <div class="scene-image-wrapper">
-                        {image_html}
-                    </div>
+                    {visual_html}
 
                     <div class="dialogues">
                         {"".join(dialogue_blocks_html)}
@@ -121,4 +142,53 @@ def generate_story_html(
         .replace("{{TITLE}}", safe_title)
         .replace("{{CSS_PATH}}", relative_stylesheet_path)
         .replace("{{SCENES}}", "".join(scenes_html))
+    )
+  
+def render_scene_characters(
+    scene_characters: list[dict],
+    chapter_folder: Path
+) -> str:
+    if not scene_characters:
+        return ""
+
+    cards = []
+
+    for character in scene_characters:
+        asset_id = character.get(
+            "asset_id"
+        )
+
+        if not asset_id:
+            continue
+
+        image_file = get_scene_character_image(
+            asset_id
+        )
+
+        relative_image_path = Path(
+            os.path.relpath(
+                image_file,
+                chapter_folder
+            )
+        ).as_posix()
+
+        cards.append(
+            f'''
+            <div class="scene-character-card">
+                <img
+                    class="scene-character-image"
+                    src="{escape(relative_image_path)}"
+                    alt=""
+                >
+            </div>
+            '''
+        )
+
+    if not cards:
+        return ""
+
+    return (
+        '<div class="scene-characters">'
+        + "".join(cards)
+        + "</div>"
     )

@@ -3,6 +3,7 @@ from html import escape
 from pathlib import Path
 
 from media.background_manager import get_scene_image
+from media.character_manager import get_scene_character_image
 
 TOP_SECTIONS_ORDER = [
     "Basic Info",
@@ -96,65 +97,35 @@ def render_top_sections(
     sections: dict
 ) -> str:
 
-    basic_info = sections.get(
-        "Basic Info"
-    )
-
-    physical_exam = sections.get(
-        "Physical Exam"
-    )
-
-    profile = sections.get(
-        "Profile"
-    )
-
-    clinical_analysis = sections.get(
+    section_names = [
+        "Basic Info",
+        "Physical Exam",
+        "Profile",
         "Clinical Analysis"
-    )
-
-    parts = [
-        '<div class="operator-info-layout">'
     ]
 
-    if basic_info or physical_exam:
-        parts.append(
-            '<div class="operator-two-columns">'
+    parts = [
+        '<div class="operator-info-layout">',
+        '<div class="operator-info-row">'
+    ]
+
+    for section_name in section_names:
+
+        section = sections.get(
+            section_name
         )
 
-        if basic_info:
-            parts.append(
-                render_info_card(
-                    basic_info,
-                    "info-section"
-                )
-            )
+        if not section:
+            continue
 
-        if physical_exam:
-            parts.append(
-                render_info_card(
-                    physical_exam,
-                    "info-section"
-                )
-            )
-
-        parts.append("</div>")
-
-    if profile:
         parts.append(
             render_info_card(
-                profile,
-                "info-section full-width"
+                section,
+                "info-section"
             )
         )
 
-    if clinical_analysis:
-        parts.append(
-            render_info_card(
-                clinical_analysis,
-                "info-section full-width"
-            )
-        )
-
+    parts.append("</div>")
     parts.append("</div>")
 
     return "".join(parts)
@@ -228,6 +199,54 @@ def render_modules(
 
     return "".join(parts)
 
+def render_scene_characters(
+    scene_characters: list[dict],
+    operator_folder: Path
+) -> str:
+    if not scene_characters:
+        return ""
+
+    cards = []
+
+    for character in scene_characters:
+        asset_id = character.get(
+            "asset_id"
+        )
+
+        if not asset_id:
+            continue
+
+        image_file = get_scene_character_image(
+            asset_id
+        )
+
+        relative_image_path = Path(
+            os.path.relpath(
+                image_file,
+                operator_folder
+            )
+        ).as_posix()
+
+        cards.append(
+            f'''
+            <div class="scene-character-card">
+                <img
+                    class="scene-character-image"
+                    src="{escape(relative_image_path)}"
+                    alt=""
+                >
+            </div>
+            '''
+        )
+
+    if not cards:
+        return ""
+
+    return (
+        '<div class="scene-characters">'
+        + "".join(cards)
+        + "</div>"
+    )
 
 def render_story_scenes(
     scenes: list[dict],
@@ -266,6 +285,14 @@ def render_story_scenes(
                 f'src="{escape(relative_image_path)}" '
                 f'alt="{escape(background_name)}">'
             )
+        
+        scene_characters_html = render_scene_characters(
+            scene.get(
+                "characters",
+                []
+            ),
+            operator_folder
+        )
 
         dialogue_blocks_html = []
 
@@ -318,7 +345,11 @@ def render_story_scenes(
                 <div class="scene-content">
 
                     <div class="scene-image-wrapper">
-                        {image_html}
+                        <div class="scene-image-stage">
+                            {image_html}
+
+                            {scene_characters_html}
+                        </div>
                     </div>
 
                     <div class="dialogues">
@@ -496,3 +527,4 @@ def generate_operator_html(
     </body>
     </html>
     """
+

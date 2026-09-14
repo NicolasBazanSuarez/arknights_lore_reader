@@ -58,7 +58,6 @@ def get_operator_data(
     operator_modules = []
 
     for module_id in module_ids:
-
         equip_info = equip_dict.get(
             module_id,
             {}
@@ -69,27 +68,29 @@ def get_operator_data(
             {}
         )
 
+        # Ignorar el badge/base module del operador.
+        if (
+            module_info.get("uniEquipIcon") == "original"
+            or module_id.startswith("uniequip_001_")
+        ):
+            continue
+
         operator_modules.append({
             "id": module_id,
-
             "name": equip_info.get(
                 "uniEquipName",
                 module_id
             ),
-
             "description": module_info.get(
                 "uniEquipDesc",
                 ""
             ),
-
             "icon": module_info.get(
                 "uniEquipIcon"
             ),
-
             "type": equip_info.get(
                 "typeName1"
             ),
-
             "variant": equip_info.get(
                 "typeName2"
             )

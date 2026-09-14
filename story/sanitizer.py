@@ -1,4 +1,5 @@
 import re
+from collections import OrderedDict
 
 SCENE_PATTERN = re.compile(
     r'^\s*\[(?P<type>Background|Image)\((?P<attrs>[^]]*)\)\]',
@@ -40,6 +41,28 @@ REFERENCES_ATTR_PATTERN = re.compile(
     re.IGNORECASE
 )
 
+CHARACTER_TAG_PATTERN = re.compile(
+    r'^\s*\[Character(?:\((?P<params>[^\]]*)\))?\]\s*$',
+    re.IGNORECASE
+)
+
+CHARACTER_NAME_PATTERN = re.compile(
+    r'\bname\d*\s*=\s*"?(?P<name>[^",)\s]+)"?',
+    re.IGNORECASE
+)
+
+def extract_character_base_name(
+    raw_name: str
+) -> str:
+    raw_name = raw_name.strip()
+
+    if "#" in raw_name:
+        return raw_name.split(
+            "#",
+            1
+        )[0]
+
+    return raw_name
 
 def parse_story_text(
     text: str,
@@ -54,31 +77,83 @@ def parse_story_text(
     current_background = None
     current_image_type = None
     current_dialogues = []
+    current_scene_characters = OrderedDict()
+    character_display_names = {
+    character_id.lower(): name
+
+    for character_id, name
+        in speaker_names.items()
+    }
+
+    pending_character_id = None
 
     # Estado de las decisiones.
     selected_decision_value = None
     predicate_active = True
 
     def save_scene():
-        if (
-            current_background is None
-            and not current_dialogues
-        ):
-            return
+        nonlocal current_background
+        nonlocal current_image_type
+        nonlocal current_dialogues
+        nonlocal current_scene_characters
+        nonlocal pending_character_id
 
-        scenes.append({
-            "background": (
-                current_background
-                or "UNKNOWN"
-            ),
-            "image_type": current_image_type,
-            "dialogues": current_dialogues.copy()
-        })
+        if current_dialogues:
+            scenes.append({
+                "background": (
+                    current_background
+                    or "UNKNOWN"
+                ),
+                "image_type": (
+                    current_image_type
+                    or "background"
+                ),
+                "dialogues": current_dialogues,
+                "characters": list(
+                    current_scene_characters.values()
+                )
+            })
+
+        current_dialogues = []
+        current_scene_characters = OrderedDict()
+        pending_character_id = None
+    
 
     def add_dialogue(
         speaker: str,
         dialogue: str
     ):
+        nonlocal pending_character_id
+
+        if (
+            speaker
+            and pending_character_id
+        ):
+            character_key = (
+                pending_character_id.lower()
+            )
+
+            # No sobreescribimos nombres que ya
+            # conocemos por el catálogo.
+            if character_key not in character_display_names:
+                character_display_names[
+                    character_key
+                ] = speaker
+
+            character = current_scene_characters.get(
+                pending_character_id
+            )
+
+            if character:
+                character[
+                    "display_name"
+                ] = character_display_names.get(
+                    character_key,
+                    speaker
+                )
+
+            pending_character_id = None
+
         if (
             current_dialogues
             and current_dialogues[-1]["speaker"]
@@ -247,13 +322,25 @@ def parse_story_text(
             )
 
             if image_match:
-                save_scene()
 
-                current_background = (
+                background_name = (
                     image_match
                     .group(1)
                     .strip()
                 )
+
+                # bg_black se utiliza como transición visual
+                # en los scripts, pero no aporta información
+                # útil al recopilatorio.
+                #
+                # Lo ignoramos completamente para que tampoco
+                # divida artificialmente los diálogos.
+                if background_name.lower() == "bg_black":
+                    continue
+
+                save_scene()
+
+                current_background = background_name
 
                 current_image_type = (
                     scene_match
@@ -262,6 +349,79 @@ def parse_story_text(
                 )
 
                 current_dialogues = []
+
+            continue
+        
+        character_match = CHARACTER_TAG_PATTERN.match(
+            line
+        )
+
+        if character_match:
+            params = (
+                character_match.group(
+                    "params"
+                )
+                or ""
+            )
+
+            character_ids = []
+
+            for name_match in CHARACTER_NAME_PATTERN.finditer(
+                params
+            ):
+                raw_character_name = (
+                    name_match
+                    .group("name")
+                    .strip()
+                )
+
+                if not raw_character_name:
+                    continue
+
+                character_id = extract_character_base_name(
+                    raw_character_name
+                )
+
+                character_ids.append(
+                    character_id
+                )
+
+                character_key = (
+                    character_id.lower()
+                )
+
+                display_name = (
+                    character_display_names.get(
+                        character_key,
+                        character_id
+                    )
+                )
+
+                if (
+                    character_id
+                    not in current_scene_characters
+                ):
+                    current_scene_characters[
+                        character_id
+                    ] = {
+                        "asset_id": character_id
+                    }
+
+                else:
+                    current_scene_characters[
+                        character_id
+                    ][
+                        "display_name"
+                    ] = display_name
+
+            # Si aparece un único personaje podemos
+            # aprender su nombre con el diálogo siguiente.
+            if len(character_ids) == 1:
+                pending_character_id = (
+                    character_ids[0]
+                )
+            else:
+                pending_character_id = None
 
             continue
         
