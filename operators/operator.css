@@ -215,41 +215,25 @@ body {
   }
 }
 
-.scene-image-stage {
-  position: relative;
-  display: inline-block;
-  max-width: 100%;
-}
-
-.scene-characters {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-
+.dialogue-speaker-row {
   display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 24px;
-
-  padding: 0 24px 18px 24px;
-  box-sizing: border-box;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
-.scene-character-card {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-
-  max-width: 140px;
+.dialogue-speaker-row .dialogue-speaker {
+  margin-bottom: 0;
 }
 
-.scene-character-image {
+.speaker-avatar {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+}
+
+.speaker-avatar-image {
   display: block;
-
-  width: auto;
-  height: auto;
-
-  max-height: 840px;
-  max-width: 420px;
+  width: 48px;
+  height: 48px;
 }

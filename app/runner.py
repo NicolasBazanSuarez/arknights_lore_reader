@@ -9,6 +9,9 @@ from operators.manager import get_operator_data
 from operators.portrait_manager import download_operator_portrait
 from story.catalog_resolver import build_speaker_names
 from story.manager import download_chapter_source, download_stories
+from translation.cache_manager import (load_operator_translation,
+                                       save_operator_translation)
+from translation.openai_translator_operator_chain import translate_operator_data
 
 OUTPUT_DIR = Path("output")
 ASSETS_DIR = Path("assets")
@@ -189,38 +192,87 @@ def run_translation(
                 f"{len(operator_data['stories'])}"
             )
 
-            # ---------------------------------
-            # Descargar historias del operador
-            # ---------------------------------
+            cached_operator_data = None
 
-            for story in operator_data[
-                "stories"
-            ]:
-
-                log(
-                    f"  Operator Record: "
-                    f"{story['name']}"
+            if (
+                not download_only
+                and not ignore_translation_cache
+            ):
+                cached_operator_data = (
+                    load_operator_translation(
+                        operator_id
+                    )
                 )
 
-                for chapter in story[
-                    "chapters"
+            if cached_operator_data:
+                log(
+                    f"  Usando caché de traducción: "
+                    f"{operator_name}"
+                )
+
+                operator_data = (
+                    cached_operator_data
+                )
+
+            else:
+                # ---------------------------------
+                # Descargar historias del operador
+                # ---------------------------------
+
+                for story in operator_data[
+                    "stories"
                 ]:
 
                     log(
-                        f"    Descargando: "
-                        f"{chapter['storyTxt']}"
+                        f"  Operator Record: "
+                        f"{story['name']}"
                     )
 
-                    chapter["scenes"] = (
-                        download_chapter_source(
-                            chapter["storyTxt"],
-                            speaker_names
+                    for chapter in story[
+                        "chapters"
+                    ]:
+
+                        log(
+                            f"    Descargando: "
+                            f"{chapter['storyTxt']}"
+                        )
+
+                        chapter["scenes"] = (
+                            download_chapter_source(
+                                chapter["storyTxt"],
+                                speaker_names
+                            )
+                        )
+
+                        log(
+                            f"    Escenas encontradas: "
+                            f"{len(chapter['scenes'])}"
+                        )
+
+                # ---------------------------------
+                # Traducir operador
+                # ---------------------------------
+
+                if not download_only:
+                    log(
+                        f"  Traduciendo ficha, módulos "
+                        f"y Operator Records..."
+                    )
+
+                    operator_data = (
+                        translate_operator_data(
+                            operator_data=operator_data,
+                            model=translation_model
                         )
                     )
 
+                    save_operator_translation(
+                        operator_id=operator_id,
+                        operator_data=operator_data
+                    )
+
                     log(
-                        f"    Escenas encontradas: "
-                        f"{len(chapter['scenes'])}"
+                        f"  Traducción guardada en caché."
                     )
 
             # ---------------------------------

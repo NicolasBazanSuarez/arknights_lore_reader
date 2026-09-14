@@ -4,7 +4,7 @@ from html import escape
 from pathlib import Path
 
 from media.background_manager import get_scene_image
-from media.character_manager import get_scene_character_image
+from media.character_manager import get_speaker_portrait
 
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "story.html"
 STYLE_PATH = Path(__file__).parent / "styles" / "story.css"
@@ -21,6 +21,33 @@ def copy_stylesheet() -> Path:
 
     return OUTPUT_STYLE_PATH
 
+def render_speaker_avatar(
+    character_id: str | None,
+    chapter_folder: Path
+) -> str:
+    if not character_id:
+        return ""
+
+    image_file = get_speaker_portrait(
+        character_id
+    )
+
+    relative_image_path = Path(
+        os.path.relpath(
+            image_file,
+            chapter_folder
+        )
+    ).as_posix()
+
+    return f'''
+    <div class="speaker-avatar">
+        <img
+            class="speaker-avatar-image"
+            src="{escape(relative_image_path)}"
+            alt=""
+        >
+    </div>
+    '''
 
 def generate_story_html(
     scenes: list[dict],
@@ -35,14 +62,6 @@ def generate_story_html(
 
         image_html = ""
         visual_html = ""
-
-        scene_characters_html = render_scene_characters(
-            scene.get(
-                "characters",
-                []
-            ),
-            chapter_folder
-        )
 
         if background_name != "UNKNOWN":
             image_file = get_scene_image(
@@ -65,11 +84,7 @@ def generate_story_html(
 
             visual_html = f'''
             <div class="scene-image-wrapper">
-                <div class="scene-image-stage">
-                    {image_html}
-
-                    {scene_characters_html}
-                </div>
+                {image_html}
             </div>
             '''
 
@@ -80,18 +95,33 @@ def generate_story_html(
                 f'<div class="line">{escape(line)}</div>'
                 for line in block["lines"]
             )
+            
+            speaker_avatar_html = (
+                render_speaker_avatar(
+                    block.get(
+                        "character_id"
+                    ),
+                    chapter_folder
+                )
+            )
 
             if block["speaker"]:
                 dialogue_blocks_html.append(
                     f'''
                     <div class="dialogue-block">
-                        <div class="speaker">
-                            {escape(block["speaker"])}:
+
+                        <div class="speaker-row">
+                            {speaker_avatar_html}
+
+                            <div class="speaker">
+                                {escape(block["speaker"])}:
+                            </div>
                         </div>
 
                         <div class="lines">
                             {lines_html}
                         </div>
+
                     </div>
                     '''
                 )
@@ -142,53 +172,4 @@ def generate_story_html(
         .replace("{{TITLE}}", safe_title)
         .replace("{{CSS_PATH}}", relative_stylesheet_path)
         .replace("{{SCENES}}", "".join(scenes_html))
-    )
-  
-def render_scene_characters(
-    scene_characters: list[dict],
-    chapter_folder: Path
-) -> str:
-    if not scene_characters:
-        return ""
-
-    cards = []
-
-    for character in scene_characters:
-        asset_id = character.get(
-            "asset_id"
-        )
-
-        if not asset_id:
-            continue
-
-        image_file = get_scene_character_image(
-            asset_id
-        )
-
-        relative_image_path = Path(
-            os.path.relpath(
-                image_file,
-                chapter_folder
-            )
-        ).as_posix()
-
-        cards.append(
-            f'''
-            <div class="scene-character-card">
-                <img
-                    class="scene-character-image"
-                    src="{escape(relative_image_path)}"
-                    alt=""
-                >
-            </div>
-            '''
-        )
-
-    if not cards:
-        return ""
-
-    return (
-        '<div class="scene-characters">'
-        + "".join(cards)
-        + "</div>"
     )

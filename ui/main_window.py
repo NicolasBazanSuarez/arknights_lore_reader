@@ -503,6 +503,12 @@ class MainWindow(QMainWindow):
             self.update_translation_controls
         )
 
+        self.download_only_checkbox.setChecked(
+            True
+        )
+
+        self.update_translation_controls()
+
         # ---------------------------------
         # Botón
         # ---------------------------------

@@ -96,37 +96,25 @@ body {
   page-break-before: always;
 }
 
-.scene-image-stage {
-  position: relative;
-  display: inline-block;
-  max-width: 100%;
-}
-
-.scene-characters {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+.speaker-row {
   display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 24px;
-  padding: 0 24px 18px 24px;
-  flex-wrap: wrap;
-  box-sizing: border-box;
-}
-
-.scene-character-card {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  max-width: 140px;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
-.scene-character-image {
-  max-height: 840px;
-  max-width: 420px;
-  width: auto;
-  height: auto;
+.speaker-row .speaker {
+  margin-bottom: 0;
+}
+
+.speaker-avatar {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+}
+
+.speaker-avatar-image {
   display: block;
+  width: 48px;
+  height: 48px;
 }

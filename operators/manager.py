@@ -28,6 +28,7 @@ def get_operator_data(
 
         operator_files.append({
             "title": title,
+            "original_title": title,
             "text": text
         })
 

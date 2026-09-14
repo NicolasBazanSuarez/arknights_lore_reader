@@ -51,6 +51,16 @@ CHARACTER_NAME_PATTERN = re.compile(
     re.IGNORECASE
 )
 
+FOCUS_ATTR_PATTERN = re.compile(
+    r'\bfocus\s*=\s*(\d+)',
+    re.IGNORECASE
+)
+
+CHARSLOT_TAG_PATTERN = re.compile(
+    r'^\s*\[charslot(?:\((?P<params>[^\]]*)\))?\]\s*$',
+    re.IGNORECASE
+)
+
 def extract_character_base_name(
     raw_name: str
 ) -> str:
@@ -78,12 +88,6 @@ def parse_story_text(
     current_image_type = None
     current_dialogues = []
     current_scene_characters = OrderedDict()
-    character_display_names = {
-    character_id.lower(): name
-
-    for character_id, name
-        in speaker_names.items()
-    }
 
     pending_character_id = None
 
@@ -125,49 +129,58 @@ def parse_story_text(
     ):
         nonlocal pending_character_id
 
-        if (
-            speaker
-            and pending_character_id
-        ):
-            character_key = (
-                pending_character_id.lower()
-            )
+        dialogue_character_id = (
+            pending_character_id
+            if speaker
+            else None
+        )
 
-            # No sobreescribimos nombres que ya
-            # conocemos por el catálogo.
-            if character_key not in character_display_names:
-                character_display_names[
-                    character_key
-                ] = speaker
-
-            character = current_scene_characters.get(
-                pending_character_id
-            )
-
-            if character:
-                character[
-                    "display_name"
-                ] = character_display_names.get(
-                    character_key,
-                    speaker
-                )
-
-            pending_character_id = None
+        pending_character_id = None
 
         if (
             current_dialogues
             and current_dialogues[-1]["speaker"]
             == speaker
         ):
-            current_dialogues[-1][
-                "lines"
-            ].append(dialogue)
+            current_block = (
+                current_dialogues[-1]
+            )
 
-        else:
-            current_dialogues.append({
-                "speaker": speaker,
-                "lines": [dialogue]
-            })
+            current_character_id = (
+                current_block.get(
+                    "character_id"
+                )
+            )
+
+            compatible_character = (
+                dialogue_character_id is None
+                or current_character_id is None
+                or current_character_id
+                == dialogue_character_id
+            )
+
+            if compatible_character:
+                if (
+                    current_character_id is None
+                    and dialogue_character_id
+                ):
+                    current_block[
+                        "character_id"
+                    ] = dialogue_character_id
+
+                current_block[
+                    "lines"
+                ].append(dialogue)
+
+                return
+
+        current_dialogues.append({
+            "speaker": speaker,
+            "character_id": (
+                dialogue_character_id
+            ),
+            "lines": [dialogue]
+        })
 
     for line in text.splitlines():
 
@@ -351,7 +364,11 @@ def parse_story_text(
                 current_dialogues = []
 
             continue
-        
+
+        # -------------------------------------------------
+        # Character
+        # -------------------------------------------------
+
         character_match = CHARACTER_TAG_PATTERN.match(
             line
         )
@@ -378,50 +395,100 @@ def parse_story_text(
                 if not raw_character_name:
                     continue
 
-                character_id = extract_character_base_name(
+                # IMPORTANTE:
+                # conservamos #N y $N para conocer
+                # la variante exacta del sprite.
+                character_ids.append(
                     raw_character_name
                 )
 
-                character_ids.append(
-                    character_id
-                )
+            pending_character_id = None
 
-                character_key = (
-                    character_id.lower()
-                )
-
-                display_name = (
-                    character_display_names.get(
-                        character_key,
-                        character_id
-                    )
-                )
-
-                if (
-                    character_id
-                    not in current_scene_characters
-                ):
-                    current_scene_characters[
-                        character_id
-                    ] = {
-                        "asset_id": character_id
-                    }
-
-                else:
-                    current_scene_characters[
-                        character_id
-                    ][
-                        "display_name"
-                    ] = display_name
-
-            # Si aparece un único personaje podemos
-            # aprender su nombre con el diálogo siguiente.
             if len(character_ids) == 1:
                 pending_character_id = (
                     character_ids[0]
                 )
-            else:
-                pending_character_id = None
+
+            elif len(character_ids) > 1:
+                focus_match = (
+                    FOCUS_ATTR_PATTERN.search(
+                        params
+                    )
+                )
+
+                if focus_match:
+                    focus_index = (
+                        int(
+                            focus_match.group(1)
+                        )
+                        - 1
+                    )
+
+                    if (
+                        0
+                        <= focus_index
+                        < len(character_ids)
+                    ):
+                        pending_character_id = (
+                            character_ids[
+                                focus_index
+                            ]
+                        )
+
+            continue
+
+
+        # -------------------------------------------------
+        # charslot
+        # -------------------------------------------------
+
+        charslot_match = CHARSLOT_TAG_PATTERN.match(
+            line
+        )
+
+        if charslot_match:
+            params = (
+                charslot_match.group(
+                    "params"
+                )
+                or ""
+            )
+
+            # Un nuevo charslot sustituye el candidato
+            # anterior para el siguiente diálogo.
+            pending_character_id = None
+
+            name_match = (
+                CHARACTER_NAME_PATTERN.search(
+                    params
+                )
+            )
+
+            if name_match:
+                raw_character_name = (
+                    name_match
+                    .group("name")
+                    .strip()
+                )
+
+                if raw_character_name:
+                    character_id = (
+                        raw_character_name.strip()
+                    )
+
+                    pending_character_id = (
+                        character_id
+                    )
+
+                    if (
+                        character_id
+                        not in current_scene_characters
+                    ):
+                        current_scene_characters[
+                            character_id
+                        ] = {
+                            "asset_id": character_id
+                        }
 
             continue
         

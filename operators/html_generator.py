@@ -3,7 +3,7 @@ from html import escape
 from pathlib import Path
 
 from media.background_manager import get_scene_image
-from media.character_manager import get_scene_character_image
+from media.character_manager import get_speaker_portrait
 
 TOP_SECTIONS_ORDER = [
     "Basic Info",
@@ -76,12 +76,16 @@ def split_operator_sections(
     extra_sections = []
 
     for section in file_sections:
-        title = _section_title(
-            section
-        )
+        if isinstance(section, dict):
+            structure_title = section.get(
+                "original_title",
+                section.get("title", "")
+            )
+        else:
+            structure_title = section[0]
 
-        if title in TOP_SECTIONS_ORDER:
-            top_sections[title] = section
+        if structure_title in TOP_SECTIONS_ORDER:
+            top_sections[structure_title] = section
         else:
             extra_sections.append(
                 section
@@ -198,56 +202,35 @@ def render_modules(
     )
 
     return "".join(parts)
-
-def render_scene_characters(
-    scene_characters: list[dict],
+    
+def render_speaker_avatar(
+    character_id: str | None,
     operator_folder: Path
 ) -> str:
-    if not scene_characters:
+    if not character_id:
         return ""
 
-    cards = []
-
-    for character in scene_characters:
-        asset_id = character.get(
-            "asset_id"
-        )
-
-        if not asset_id:
-            continue
-
-        image_file = get_scene_character_image(
-            asset_id
-        )
-
-        relative_image_path = Path(
-            os.path.relpath(
-                image_file,
-                operator_folder
-            )
-        ).as_posix()
-
-        cards.append(
-            f'''
-            <div class="scene-character-card">
-                <img
-                    class="scene-character-image"
-                    src="{escape(relative_image_path)}"
-                    alt=""
-                >
-            </div>
-            '''
-        )
-
-    if not cards:
-        return ""
-
-    return (
-        '<div class="scene-characters">'
-        + "".join(cards)
-        + "</div>"
+    image_file = get_speaker_portrait(
+        character_id
     )
 
+    relative_image_path = Path(
+        os.path.relpath(
+            image_file,
+            operator_folder
+        )
+    ).as_posix()
+
+    return f'''
+    <div class="speaker-avatar">
+        <img
+            class="speaker-avatar-image"
+            src="{escape(relative_image_path)}"
+            alt=""
+        >
+    </div>
+    '''
+    
 def render_story_scenes(
     scenes: list[dict],
     operator_folder: Path
@@ -285,14 +268,6 @@ def render_story_scenes(
                 f'src="{escape(relative_image_path)}" '
                 f'alt="{escape(background_name)}">'
             )
-        
-        scene_characters_html = render_scene_characters(
-            scene.get(
-                "characters",
-                []
-            ),
-            operator_folder
-        )
 
         dialogue_blocks_html = []
 
@@ -313,13 +288,26 @@ def render_story_scenes(
                 "speaker",
                 ""
             ).strip()
+            
+            speaker_avatar_html = (
+                render_speaker_avatar(
+                    block.get(
+                        "character_id"
+                    ),
+                    operator_folder
+                )
+            )
 
             if speaker:
                 dialogue_blocks_html.append(
                     f'''
                     <div class="dialogue-block">
-                        <div class="dialogue-speaker">
-                            {escape(speaker)}:
+                        <div class="dialogue-speaker-row">
+                            {speaker_avatar_html}
+
+                            <div class="dialogue-speaker">
+                                {escape(speaker)}:
+                            </div>
                         </div>
 
                         <div class="dialogue-lines">
@@ -345,11 +333,7 @@ def render_story_scenes(
                 <div class="scene-content">
 
                     <div class="scene-image-wrapper">
-                        <div class="scene-image-stage">
-                            {image_html}
-
-                            {scene_characters_html}
-                        </div>
+                        {image_html}
                     </div>
 
                     <div class="dialogues">
