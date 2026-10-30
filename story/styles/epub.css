@@ -1,0 +1,79 @@
+body {
+  font-family: sans-serif;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.chapter-title {
+  text-align: center;
+  font-size: 1.6em;
+  font-weight: bold;
+  margin: 0 0 1.2em 0;
+}
+
+.scene {
+  page-break-before: always;
+  break-before: page;
+}
+
+.scene:first-of-type {
+  page-break-before: auto;
+  break-before: auto;
+}
+
+.scene-image-wrapper {
+  text-align: center;
+  margin: 0 0 1em 0;
+}
+
+.scene-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.dialogue-block {
+  margin: 0 0 1em 0;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.speaker-row {
+  margin: 0 0 0.35em 0;
+}
+
+.speaker-avatar,
+.speaker {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.speaker-avatar {
+  width: 3em;
+  height: 3em;
+  margin-right: 0.6em;
+}
+
+.speaker-avatar-image {
+  display: block;
+  width: 3em;
+  height: 3em;
+}
+
+.speaker {
+  font-weight: bold;
+}
+
+.lines {
+  margin-left: 1.5em;
+}
+
+.line {
+  margin-bottom: 0.25em;
+}
+
+.narrator .lines {
+  margin-left: 0;
+  font-style: italic;
+}

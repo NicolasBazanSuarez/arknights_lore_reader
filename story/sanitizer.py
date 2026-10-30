@@ -61,6 +61,34 @@ CHARSLOT_TAG_PATTERN = re.compile(
     re.IGNORECASE
 )
 
+CHARSLOT_SLOT_PATTERN = re.compile(
+    r'\bslot\s*=\s*"([^"]+)"',
+    re.IGNORECASE
+)
+
+CHARSLOT_FOCUS_PATTERN = re.compile(
+    r'\bfocus\s*=\s*"([^"]+)"',
+    re.IGNORECASE
+)
+
+
+def normalize_charslot_name(
+    value: str
+) -> str | None:
+    value = value.strip().lower()
+
+    aliases = {
+        "l": "l",
+        "left": "l",
+        "m": "m",
+        "middle": "m",
+        "center": "m",
+        "r": "r",
+        "right": "r",
+    }
+
+    return aliases.get(value)
+
 def extract_character_base_name(
     raw_name: str
 ) -> str:
@@ -90,6 +118,7 @@ def parse_story_text(
     current_scene_characters = OrderedDict()
 
     pending_character_id = None
+    current_slot_characters = {}
 
     # Estado de las decisiones.
     selected_decision_value = None
@@ -454,9 +483,33 @@ def parse_story_text(
                 or ""
             )
 
-            # Un nuevo charslot sustituye el candidato
-            # anterior para el siguiente diálogo.
             pending_character_id = None
+
+            # [charslot] vacío elimina los personajes
+            # que había actualmente en pantalla.
+            if not params.strip():
+                current_slot_characters.clear()
+                continue
+
+            slot_match = (
+                CHARSLOT_SLOT_PATTERN.search(
+                    params
+                )
+            )
+
+            focus_match = (
+                CHARSLOT_FOCUS_PATTERN.search(
+                    params
+                )
+            )
+
+            slot_name = (
+                normalize_charslot_name(
+                    slot_match.group(1)
+                )
+                if slot_match
+                else None
+            )
 
             name_match = (
                 CHARACTER_NAME_PATTERN.search(
@@ -480,6 +533,11 @@ def parse_story_text(
                         character_id
                     )
 
+                    if slot_name:
+                        current_slot_characters[
+                            slot_name
+                        ] = character_id
+
                     if (
                         character_id
                         not in current_scene_characters
@@ -489,6 +547,20 @@ def parse_story_text(
                         ] = {
                             "asset_id": character_id
                         }
+
+            elif focus_match:
+                focus_name = (
+                    normalize_charslot_name(
+                        focus_match.group(1)
+                    )
+                )
+
+                if focus_name:
+                    pending_character_id = (
+                        current_slot_characters.get(
+                            focus_name
+                        )
+                    )
 
             continue
         

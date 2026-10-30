@@ -4,7 +4,7 @@ import requests
 
 PORTRAIT_BASE_URL = (
     "https://arknights.timo.beer/"
-    "arkdata/assets/torappu/dynamicassets/arts/charportraits"
+    "game/en/arts/charportraits"
 )
 
 
@@ -17,7 +17,7 @@ def download_operator_portrait(
         exist_ok=True
     )
 
-    filename = f"{operator_id}_1.png"
+    filename = f"{operator_id}_1.webp"
     destination = portraits_dir / filename
 
     if destination.exists():

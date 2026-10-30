@@ -4,12 +4,12 @@ import requests
 
 BACKGROUND_BASE_URL = (
     "https://arknights.timo.beer/"
-    "arkdata/assets/torappu/dynamicassets/avg/backgrounds"
+    "game/en/avg/backgrounds"
 )
 
 IMAGE_BASE_URL = (
     "https://arknights.timo.beer/"
-    "arkdata/assets/torappu/dynamicassets/avg/images"
+    "game/en/avg/images"
 )
 
 SCENE_IMAGES_FOLDER = Path("assets/scene_images")
@@ -21,7 +21,7 @@ def get_scene_image(image_name: str, image_type: str) -> Path:
 
     normalized_name = image_name.lower()
 
-    destination = folder / f"{normalized_name}.png"
+    destination = folder / f"{normalized_name}.webp"
 
     if destination.exists():
         return destination
@@ -32,7 +32,7 @@ def get_scene_image(image_name: str, image_type: str) -> Path:
         base_url = IMAGE_BASE_URL
 
     response = requests.get(
-        f"{base_url}/{normalized_name}.png",
+        f"{base_url}/{normalized_name}.webp",
         timeout=30
     )
     response.raise_for_status()

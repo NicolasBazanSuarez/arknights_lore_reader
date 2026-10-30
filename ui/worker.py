@@ -19,7 +19,10 @@ class TranslationWorker(QObject):
         context_model: str,
         regenerate_context: bool,
         ignore_translation_cache: bool,
-        download_only: bool
+        download_only: bool,
+        generate_epub: bool,
+        generate_html: bool,
+        send_to_kindle: bool
     ):
         super().__init__()
 
@@ -32,6 +35,9 @@ class TranslationWorker(QObject):
             ignore_translation_cache
         )
         self.download_only = download_only
+        self.generate_epub = generate_epub
+        self.generate_html = generate_html
+        self.send_to_kindle = send_to_kindle
 
     @Slot()
     def run(self):
@@ -50,8 +56,11 @@ class TranslationWorker(QObject):
                     self.ignore_translation_cache
                 ),
                 download_only=self.download_only,
+                generate_epub=self.generate_epub,
+                generate_html=self.generate_html,
+                send_to_kindle=self.send_to_kindle,
                 log_callback=self.log.emit,
-                progress_callback=self.progress.emit
+                progress_callback=self.progress.emit,
             )
 
             self.log.emit(

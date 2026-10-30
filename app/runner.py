@@ -11,7 +11,8 @@ from story.catalog_resolver import build_speaker_names
 from story.manager import download_chapter_source, download_stories
 from translation.cache_manager import (load_operator_translation,
                                        save_operator_translation)
-from translation.openai_translator_operator_chain import translate_operator_data
+from translation.openai_translator_operator_chain import \
+    translate_operator_data
 
 OUTPUT_DIR = Path("output")
 ASSETS_DIR = Path("assets")
@@ -65,6 +66,9 @@ def run_translation(
     regenerate_context: bool = False,
     ignore_translation_cache: bool = False,
     download_only: bool = False,
+    generate_epub: bool = True,
+    generate_html: bool = False,
+    send_to_kindle: bool = True,
     log_callback=None,
     progress_callback=None
 ):
@@ -117,6 +121,9 @@ def run_translation(
                 ignore_translation_cache
             ),
             download_only=download_only,
+            generate_epub=generate_epub,
+            generate_html=generate_html,
+            send_to_kindle=send_to_kindle,
             log_callback=log_callback,
             progress_callback=(
                 progress_callback

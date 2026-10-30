@@ -4,9 +4,25 @@ from urllib.parse import quote
 import requests
 from PIL import Image, ImageDraw
 
+ALPHA_THRESHOLD = 24
+
+TOP_DENSITY_RATIO = 0.18
+SIDE_DENSITY_RATIO = 0.22
+
+HEAD_SCAN_HEIGHT_RATIO = 0.22
+SMOOTH_WINDOW = 7
+
+CROP_MARGIN_RATIO = 1.28
+TOP_PADDING_RATIO = 0.10
+
+MIN_CROP_RATIO = 0.26
+MAX_CROP_RATIO = 0.52
+
+_CHARACTER_CROP_CACHE = {}
+
 CHARACTER_BASE_URL = (
     "https://arknights.timo.beer/"
-    "arkdata/assets/avg/characters"
+    "game/en/avg/characters"
 )
 
 ASSETS_DIR = Path("assets")
@@ -61,7 +77,7 @@ def build_character_filename(
     return (
         f"{base_name}"
         f"#{expression}"
-        f"${subvariant}.png"
+        f"${subvariant}.webp"
     )
 
 
@@ -82,7 +98,7 @@ def get_scene_character_image(
     )
 
     local_filename = (
-        f"{normalized_base_name}__1_1.png"
+        f"{normalized_base_name}__1_1.webp"
     )
 
     destination = (
@@ -154,10 +170,46 @@ def get_speaker_portrait(
         source_image_path
     ).convert("RGBA")
 
-    # Recorte fijo sobre las imágenes AVG 1024x1024.
-    crop_size = 350
-    crop_x = 312
-    crop_y = 30
+    crop_x_ratio, crop_y_ratio, crop_size_ratio = (
+        analyze_character_crop(
+            base_name
+        )
+    )
+
+    width, height = image.size
+    base_dimension = min(
+        width,
+        height
+    )
+
+    crop_size = int(
+        base_dimension
+        * crop_size_ratio
+    )
+
+    crop_x = int(
+        width * crop_x_ratio
+    )
+
+    crop_y = int(
+        height * crop_y_ratio
+    )
+
+    crop_x = max(
+        0,
+        min(
+            crop_x,
+            width - crop_size
+        )
+    )
+
+    crop_y = max(
+        0,
+        min(
+            crop_y,
+            height - crop_size
+        )
+    )
 
     cropped = image.crop(
         (
@@ -218,17 +270,336 @@ def normalize_character_variant(
         .lower()
     )
 
-    if "#" not in character_id:
-        return (
-            f"{character_id}#1$1"
+    has_variant = "#" in character_id
+    has_subvariant = "$" in character_id
+
+    # avg_xxx#4$2
+    if has_variant and has_subvariant:
+        return character_id
+
+    # avg_xxx#4
+    # -> avg_xxx#4$1
+    if has_variant:
+        return f"{character_id}$1"
+
+    # avg_xxx$2
+    # -> avg_xxx#1$2
+    if has_subvariant:
+        base_id, subvariant = (
+            character_id.split(
+                "$",
+                1
+            )
         )
 
-    if "$" not in character_id:
         return (
-            f"{character_id}$1"
+            f"{base_id}"
+            f"#1"
+            f"${subvariant}"
         )
 
-    return character_id
+    # avg_xxx
+    # -> avg_xxx#1$1
+    return f"{character_id}#1$1"
+
+def get_base_character_id(
+    character_id: str
+) -> str:
+    normalized = normalize_character_variant(
+        character_id
+    )
+
+    return normalized.split(
+        "#",
+        1
+    )[0]
+
+
+def get_neutral_character_variant(
+    character_id: str
+) -> str:
+    base_id = get_base_character_id(
+        character_id
+    )
+
+    return f"{base_id}#1$1"
+
+
+def smooth_values(
+    values: list[int],
+    window: int
+) -> list[float]:
+    if window <= 1:
+        return [float(v) for v in values]
+
+    radius = window // 2
+    smoothed = []
+
+    for index in range(
+        len(values)
+    ):
+        start = max(
+            0,
+            index - radius
+        )
+        end = min(
+            len(values),
+            index + radius + 1
+        )
+
+        chunk = values[start:end]
+
+        smoothed.append(
+            sum(chunk) / len(chunk)
+        )
+
+    return smoothed
+
+
+def find_first_index_over_threshold(
+    values: list[float],
+    threshold: float
+) -> int:
+    for index, value in enumerate(
+        values
+    ):
+        if value >= threshold:
+            return index
+
+    return 0
+
+
+def find_last_index_over_threshold(
+    values: list[float],
+    threshold: float
+) -> int:
+    for index in range(
+        len(values) - 1,
+        -1,
+        -1
+    ):
+        if values[index] >= threshold:
+            return index
+
+    return len(values) - 1
+
+
+def analyze_character_crop(
+    character_id: str
+) -> tuple[float, float, float]:
+    base_id = get_base_character_id(
+        character_id
+    )
+
+    cached = _CHARACTER_CROP_CACHE.get(
+        base_id
+    )
+
+    if cached is not None:
+        return cached
+
+    reference_variant = (
+        get_neutral_character_variant(
+            character_id
+        )
+    )
+
+    try:
+        reference_path = (
+            get_character_variant_image(
+                reference_variant
+            )
+        )
+    except Exception:
+        reference_path = (
+            get_character_variant_image(
+                character_id
+            )
+        )
+
+    with Image.open(
+        reference_path
+    ) as img:
+        image = img.convert("RGBA")
+
+    width, height = image.size
+
+    alpha = image.getchannel("A")
+
+    row_counts = []
+
+    for y in range(height):
+        row = alpha.crop(
+            (0, y, width, y + 1)
+        )
+
+        occupied = sum(
+            1
+            for value in row.getdata()
+            if value >= ALPHA_THRESHOLD
+        )
+
+        row_counts.append(
+            occupied
+        )
+
+    max_row_density = max(
+        row_counts,
+        default=0
+    )
+
+    top_threshold = max(
+        1,
+        int(
+            max_row_density
+            * TOP_DENSITY_RATIO
+        )
+    )
+
+    top_y = find_first_index_over_threshold(
+        row_counts,
+        top_threshold
+    )
+
+    head_scan_height = max(
+        48,
+        int(
+            height
+            * HEAD_SCAN_HEIGHT_RATIO
+        )
+    )
+
+    scan_bottom = min(
+        height,
+        top_y + head_scan_height
+    )
+
+    column_counts = []
+
+    for x in range(width):
+        column = alpha.crop(
+            (
+                x,
+                top_y,
+                x + 1,
+                scan_bottom
+            )
+        )
+
+        occupied = sum(
+            1
+            for value in column.getdata()
+            if value >= ALPHA_THRESHOLD
+        )
+
+        column_counts.append(
+            occupied
+        )
+
+    smoothed_columns = smooth_values(
+        column_counts,
+        SMOOTH_WINDOW
+    )
+
+    max_column_density = max(
+        smoothed_columns,
+        default=0
+    )
+
+    side_threshold = max(
+        1,
+        max_column_density
+        * SIDE_DENSITY_RATIO
+    )
+
+    left_x = find_first_index_over_threshold(
+        smoothed_columns,
+        side_threshold
+    )
+
+    right_x = find_last_index_over_threshold(
+        smoothed_columns,
+        side_threshold
+    )
+
+    if right_x <= left_x:
+        left_x = int(width * 0.30)
+        right_x = int(width * 0.70)
+
+    detected_width = (
+        right_x - left_x + 1
+    )
+
+    crop_size = int(
+        detected_width
+        * CROP_MARGIN_RATIO
+    )
+
+    base_dimension = min(
+        width,
+        height
+    )
+
+    crop_size = max(
+        crop_size,
+        int(
+            base_dimension
+            * MIN_CROP_RATIO
+        )
+    )
+
+    crop_size = min(
+        crop_size,
+        int(
+            base_dimension
+            * MAX_CROP_RATIO
+        )
+    )
+
+    center_x = (
+        left_x + right_x
+    ) // 2
+
+    crop_x = (
+        center_x
+        - crop_size // 2
+    )
+
+    crop_y = (
+        top_y
+        - int(
+            crop_size
+            * TOP_PADDING_RATIO
+        )
+    )
+
+    crop_x = max(
+        0,
+        min(
+            crop_x,
+            width - crop_size
+        )
+    )
+
+    crop_y = max(
+        0,
+        min(
+            crop_y,
+            height - crop_size
+        )
+    )
+
+    result = (
+        crop_x / width,
+        crop_y / height,
+        crop_size / base_dimension
+    )
+
+    _CHARACTER_CROP_CACHE[
+        base_id
+    ] = result
+
+    return result
 
 def get_character_variant_image(
     character_id: str
@@ -252,14 +623,14 @@ def get_character_variant_image(
 
     destination = (
         CHARACTERS_DIR
-        / f"{safe_name}.png"
+        / f"{safe_name}.webp"
     )
 
     if destination.exists():
         return destination
 
     filename = (
-        f"{normalized_id}.png"
+        f"{normalized_id}.webp"
     )
 
     encoded_filename = quote(

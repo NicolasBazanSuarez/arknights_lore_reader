@@ -3,9 +3,11 @@ from pathlib import Path
 
 import requests
 
+from delivery.server_sender import send_epub_to_server
 from models.category import CATEGORIES
 from story.catalog_resolver import build_speaker_names, get_story_chapters
 from story.compendium_generator import generate_story_compendium
+from story.epub_generator import generate_story_epub
 from story.sanitizer import parse_story_text
 from translation.cache_manager import (load_chapter_translation,
                                        save_chapter_translation)
@@ -15,7 +17,7 @@ from translation.openai_translator import translate_chapter
 
 STORY_BASE_URL = (
     "https://arknights.timo.beer/"
-    "ArknightsGameData_Assets/en/gamedata/story"
+    "game/en/gamedata/story"
 )
 
 def sanitize_name(name: str) -> str:
@@ -96,6 +98,9 @@ def download_stories(
     regenerate_context: bool = False,
     ignore_translation_cache: bool = False,
     download_only: bool = False,
+    generate_epub: bool = True,
+    generate_html: bool = False,
+    send_to_kindle: bool = True,
     log_callback=None,
     progress_callback=None
 ):
@@ -240,15 +245,32 @@ def download_stories(
                         )
                     )
 
-            generate_story_compendium(
-                story_folder=story_folder,
-                story_title=story_display_title,
-                cover_name=group.get("cover"),
-                chapters=downloaded_chapters
-            )
+            if generate_html:
+                generate_story_compendium(
+                    story_folder=story_folder,
+                    story_title=story_display_title,
+                    cover_name=group.get("cover"),
+                    chapters=downloaded_chapters
+                )
+
+            if generate_epub:
+                epub_path = generate_story_epub(
+                    story_folder=story_folder,
+                    story_title=story_display_title,
+                    cover_name=group.get(
+                        "cover"
+                    ),
+                    chapters=downloaded_chapters,
+                    language="en"
+                )
+
+                if epub_path:
+                    send_epub_to_server(
+                        epub_path
+                    )
 
             log(
-                f"Recopilatorio descargado: "
+                f"Salida generada: "
                 f"{story_display_title}"
             )
 
@@ -386,16 +408,33 @@ def download_stories(
                     )
                 )
 
-        generate_story_compendium(
-            story_folder=story_folder,
-            story_title=story_display_title,
-            cover_name=group.get(
-                "cover"
-            ),
-            chapters=translated_chapters
-        )
-        
+        if generate_html:
+            generate_story_compendium(
+                story_folder=story_folder,
+                story_title=story_display_title,
+                cover_name=group.get(
+                    "cover"
+                ),
+                chapters=translated_chapters
+            )
+
+        if generate_epub:
+            epub_path = generate_story_epub(
+                story_folder=story_folder,
+                story_title=story_display_title,
+                cover_name=group.get(
+                    "cover"
+                ),
+                chapters=translated_chapters,
+                language="es"
+            )
+
+            if epub_path:
+                send_epub_to_server(
+                    epub_path
+                )
+
         log(
-            f"Recopilatorio generado: "
+            f"Salida generada: "
             f"{story_display_title}"
         )

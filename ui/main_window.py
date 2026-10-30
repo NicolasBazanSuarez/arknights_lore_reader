@@ -184,6 +184,19 @@ class MainWindow(QMainWindow):
             self.download_only_checkbox.isChecked()
         )
         
+        generate_epub = (
+            self.epub_checkbox.isChecked()
+        )
+
+        generate_html = (
+            self.html_checkbox.isChecked()
+        )
+        
+        send_to_kindle = (
+            self.send_to_kindle_checkbox.isChecked()
+            and generate_epub
+        )
+        
         self.start_button.setEnabled(
             False
         )
@@ -218,7 +231,10 @@ class MainWindow(QMainWindow):
             context_model=context_model,
             regenerate_context=regenerate_context,
             ignore_translation_cache=ignore_translation_cache,
-            download_only=download_only
+            download_only=download_only,
+            generate_epub=generate_epub,
+            generate_html=generate_html,
+            send_to_kindle=send_to_kindle
         )
 
         self.worker.moveToThread(
@@ -422,73 +438,15 @@ class MainWindow(QMainWindow):
         )
 
         # ---------------------------------
-        # Configuración
+        # Descarga y traducción
         # ---------------------------------
 
         settings_group = QGroupBox(
-            "Configuración"
+            "Descarga y traducción"
         )
 
         settings_layout = QVBoxLayout(
             settings_group
-        )
-
-        settings_layout.addWidget(
-            QLabel("Modelo de traducción")
-        )
-
-        self.translation_model = QComboBox()
-        
-        self.translation_model.setEditable(
-            True
-        )
-
-        self.translation_model.addItem(
-            "gpt-5.6-luna"
-        )
-
-        settings_layout.addWidget(
-            self.translation_model
-        )
-
-        settings_layout.addWidget(
-            QLabel("Modelo de contexto")
-        )
-
-        self.context_model = QComboBox()
-        
-        self.context_model.setEditable(
-            True
-        )
-
-        self.context_model.addItem(
-            "gpt-5.6-terra"
-        )
-
-        settings_layout.addWidget(
-            self.context_model
-        )
-
-        settings_layout.addStretch()
-
-        content_layout.addWidget(
-            settings_group
-        )
-        
-        self.regenerate_context_checkbox = QCheckBox(
-            "Regenerar contexto"
-        )
-
-        settings_layout.addWidget(
-            self.regenerate_context_checkbox
-        )
-
-        self.ignore_cache_checkbox = QCheckBox(
-            "Ignorar caché de traducciones"
-        )
-
-        settings_layout.addWidget(
-            self.ignore_cache_checkbox
         )
 
         self.download_only_checkbox = QCheckBox(
@@ -497,6 +455,74 @@ class MainWindow(QMainWindow):
 
         settings_layout.addWidget(
             self.download_only_checkbox
+        )
+
+        # Opciones dependientes del modo
+        # de traducción. Las indentamos para
+        # mostrar visualmente la relación.
+        translation_options_layout = QVBoxLayout()
+
+        translation_options_layout.setContentsMargins(
+            24,
+            0,
+            0,
+            0
+        )
+
+        translation_options_layout.addWidget(
+            QLabel("Modelo de traducción")
+        )
+
+        self.translation_model = QComboBox()
+
+        self.translation_model.setEditable(
+            True
+        )
+
+        self.translation_model.addItem(
+            "gpt-5.6-luna"
+        )
+
+        translation_options_layout.addWidget(
+            self.translation_model
+        )
+
+        translation_options_layout.addWidget(
+            QLabel("Modelo de contexto")
+        )
+
+        self.context_model = QComboBox()
+
+        self.context_model.setEditable(
+            True
+        )
+
+        self.context_model.addItem(
+            "gpt-5.6-terra"
+        )
+
+        translation_options_layout.addWidget(
+            self.context_model
+        )
+
+        self.regenerate_context_checkbox = QCheckBox(
+            "Regenerar contexto"
+        )
+
+        translation_options_layout.addWidget(
+            self.regenerate_context_checkbox
+        )
+
+        self.ignore_cache_checkbox = QCheckBox(
+            "Ignorar caché de traducciones"
+        )
+
+        translation_options_layout.addWidget(
+            self.ignore_cache_checkbox
+        )
+
+        settings_layout.addLayout(
+            translation_options_layout
         )
 
         self.download_only_checkbox.stateChanged.connect(
@@ -508,6 +534,86 @@ class MainWindow(QMainWindow):
         )
 
         self.update_translation_controls()
+
+
+        # ---------------------------------
+        # Formato de salida
+        # ---------------------------------
+
+        output_group = QGroupBox(
+            "Formato de salida"
+        )
+
+        output_layout = QVBoxLayout(
+            output_group
+        )
+
+        self.epub_checkbox = QCheckBox(
+            "EPUB"
+        )
+
+        self.epub_checkbox.setChecked(
+            True
+        )
+
+        output_layout.addWidget(
+            self.epub_checkbox
+        )
+
+        self.html_checkbox = QCheckBox(
+            "HTML"
+        )
+
+        output_layout.addWidget(
+            self.html_checkbox
+        )
+        
+        self.send_to_kindle_checkbox = QCheckBox(
+            "Enviar EPUB al Kindle"
+        )
+
+        self.send_to_kindle_checkbox.setChecked(
+            True
+        )
+
+        output_layout.addWidget(
+            self.send_to_kindle_checkbox
+        )
+
+        self.epub_checkbox.stateChanged.connect(
+            self.ensure_output_format_selected
+        )
+
+        self.html_checkbox.stateChanged.connect(
+            self.ensure_output_format_selected
+        )
+        
+        self.epub_checkbox.stateChanged.connect(
+            self.update_kindle_option
+        )
+
+        self.update_kindle_option()
+
+
+        # ---------------------------------
+        # Columna derecha
+        # ---------------------------------
+
+        right_options_layout = QVBoxLayout()
+
+        right_options_layout.addWidget(
+            settings_group
+        )
+
+        right_options_layout.addWidget(
+            output_group
+        )
+
+        right_options_layout.addStretch()
+
+        content_layout.addLayout(
+            right_options_layout
+        )
 
         # ---------------------------------
         # Botón
@@ -931,6 +1037,30 @@ class MainWindow(QMainWindow):
 
         self.ignore_cache_checkbox.setEnabled(
             translation_enabled
+        )
+        
+    def ensure_output_format_selected(
+        self,
+        _state=None
+    ):
+        if (
+            not self.epub_checkbox.isChecked()
+            and not self.html_checkbox.isChecked()
+        ):
+            self.epub_checkbox.setChecked(
+                True
+            )
+            
+    def update_kindle_option(
+        self,
+        _state=None
+    ):
+        epub_enabled = (
+            self.epub_checkbox.isChecked()
+        )
+
+        self.send_to_kindle_checkbox.setEnabled(
+            epub_enabled
         )
         
     def on_groups_loaded(
